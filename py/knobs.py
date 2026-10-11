@@ -117,6 +117,34 @@ KNOBS = {
     },
 }
 
+# WHAT BARRIER THESE CONDITIONS ARE ABOUT
+#
+# Every setting in KNOBS comes from the eNTRy rules, which are about entry
+# into GRAM-NEGATIVE BACTERIA -- accumulation across an outer membrane with
+# efflux. They are not a general permeability rule and they are not a rule
+# about any other barrier.
+#
+# Recorded as a field because without it nothing can notice the mismatch. The
+# blood-brain barrier data in this repository (B3DB, 7,807 compounds with
+# BBB+/BBB- labels) is a different barrier with different chemistry: entry
+# into Gram-negatives wants an ionisable nitrogen and a positive charge, and
+# the literature on brain penetration does not. Screening a BBB library with
+# these conditions would run to completion and report nothing wrong, which is
+# the failure the slice check exists to prevent, in another place.
+APPLIES_TO = {
+    "barrier": "the Gram-negative outer membrane",
+    "source": "Richter et al., Nature 545:299 (2017), the eNTRy rules",
+    "not": "they are not a general permeability rule, and not a rule about "
+           "any other "
+           "barrier. In particular not the blood-brain barrier, where the "
+           "positive charge these conditions select for is not what the "
+           "literature associates with penetration",
+    "what_would_extend_it": "a registry for the other barrier, with its own "
+                            "settings and its own published source per "
+                            "setting. Not these settings pointed at other "
+                            "data",
+}
+
 # The order a specification's settings are enumerated and reported in. Derived
 # from the registry rather than written out, because it was written out in four
 # places and retiring a knob had to find all four.

@@ -153,7 +153,26 @@ LIBRARIES = [
     (r"\bimi", "data/work/imi_clean.parquet"),
     (r"\bchamp", "data/work/champ.parquet"),
     (r"\bgramnegaccum|\bgna\b", "data/work/gna.parquet"),
+    # Blood-brain barrier. Nameable so that a request about it is read rather
+    # than discarded, and so that the barrier mismatch below can fire. The
+    # registry has no BBB settings, so a request to SCREEN this with the
+    # Gram-negative conditions stops; a request ABOUT it -- is my set inside
+    # its domain, how much would have to be measured -- is answerable.
+    (r"\bb3db\b|blood[- ]brain|\bbbb\b",
+     "data/work/B3DB_classification.parquet"),
 ]
+
+# Which barrier a library is about, where that is recorded. A library absent
+# from here is not assumed to match the registry: it is reported as unknown.
+LIBRARY_BARRIER = {
+    "data/work/zinc_O": None,
+    "data/work/zinc_P": None,
+    "data/work/zinc": None,
+    "data/work/imi_clean.parquet": "the Gram-negative outer membrane",
+    "data/work/champ.parquet": "the Gram-negative outer membrane",
+    "data/work/gna.parquet": "the Gram-negative outer membrane",
+    "data/work/B3DB_classification.parquet": "the blood-brain barrier",
+}
 
 # A word ending this way, or named as the object of "inhibitor", is read as a
 # claimed biological target and checked against the evidence rather than used.
@@ -492,8 +511,12 @@ def main():
     # the screen it produced reported the opposite of the right answer. It is
     # identified before the request is echoed, so that the echo can name the
     # library the way a chemist would rather than by its path on this disk.
+    # The slice check is about ZINC's charge suffixes. Running it on a
+    # measured dataset reports "the library does not record where it came
+    # from", which is true and says nothing: that dataset has no slices.
+    is_zinc = str(spec.get("library") or "").startswith("data/work/zinc")
     library_check = provenance_mod.report(spec["library"], spec["requirements"]) \
-        if spec.get("library") else None
+        if is_zinc else None
 
     show(spec, notes, library_check["library"] if library_check else None)
     (args.out_dir / "request.json").write_text(json.dumps(spec, indent=2) + "\n")
@@ -533,6 +556,36 @@ def main():
                             f"{label}: {contradiction[key]}",
                             indent=4, hanging=6):
                         print(line)
+
+    # The registry's settings are the eNTRy rules and say so. A library about
+    # another barrier screened with them would run to completion and report
+    # nothing wrong -- the same silence the charge-slice check exists to break.
+    barrier = LIBRARY_BARRIER.get(spec.get("library"), "unrecorded")
+    asked_knobs = [r for r in spec["requirements"] if "knob" in r]
+    if asked_knobs and barrier not in (None, knobs_mod.APPLIES_TO["barrier"]):
+        print("\nabout these conditions:")
+        for line in render_mod.wrap(
+                f"they are {knobs_mod.APPLIES_TO['source']}, and they are "
+                f"about {knobs_mod.APPLIES_TO['barrier']}.", indent=2,
+                hanging=4):
+            print(line)
+        named = ("not recorded for this library" if barrier == "unrecorded"
+                 else barrier)
+        for line in render_mod.wrap(f"this library is about {named}.",
+                                    indent=2, hanging=4):
+            print(line)
+        for line in render_mod.wrap(knobs_mod.APPLIES_TO["not"], indent=2,
+                                    hanging=4):
+            print(line)
+        for line in render_mod.wrap(
+                f"what would extend it: "
+                f"{knobs_mod.APPLIES_TO['what_would_extend_it']}", indent=2,
+                hanging=4):
+            print(line)
+        if not args.yes:
+            return stop("the conditions asked for are a published rule about "
+                        "a different barrier from the one this library "
+                        "measures. Pass --yes to run anyway, having read why.")
 
     blocking = [c for c in target_checks if c["verdict"] == "not_answerable"]
     if library_check and (library_check["contradiction"] or {}).get("severity") \

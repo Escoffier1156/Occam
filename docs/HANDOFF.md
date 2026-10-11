@@ -159,7 +159,7 @@ occam --spec request.json    # 記録・提出用。こちらが正
 
 ### テスト
 
-Python **119本** + Rust **11本**。KeepOut ロック **9箇所**。
+Python **124本** + Rust **11本**。KeepOut ロック **9箇所**。
 
 ```bash
 nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_ingest.py \
@@ -207,6 +207,50 @@ nix-shell --run 'cd engine && cargo test --release'
 狙いは作業メモリをデータ量から独立させること。`M ≈ D / N + R`（D=データ総量、N=バルク数、R=引き継ぎ結果のサイズ）。
 
 元は「Molt」という名前で、2026-10-07 に Occam へ改名した。
+
+### この registry は1つの障壁についてのもの（2026-10-11）
+
+`knobs.py` の設定は全部 eNTRy 則で、**グラム陰性外膜への侵入**についてのもの。
+一般的な透過性の規則ではないし、他の障壁の規則でもない。
+
+**それが `APPLIES_TO` に記録されるまで、どこにも書いていなかった。**だから血液脳関門の
+データ（B3DB、7,805件）に eNTRy 条件を向けても、最後まで走って何も異常を報告しなかった。
+**電荷スライスの取り違えと同じ沈黙が、別の場所にあった。**
+
+| ライブラリ | 障壁 |
+|---|---|
+| ZINC（-N / -O / -P） | **なし。**カタログなので何も測っていない＝矛盾しない |
+| IMI-COMBINE / CHAMP / GramNegAccum | グラム陰性外膜 |
+| **B3DB** | **血液脳関門** |
+
+不一致なら理由を出して停止する（`--yes` で承知のうえ実行は可能）。
+**`LIBRARY_BARRIER` に書かれていないライブラリは「不明」として扱い、registry と一致すると
+仮定しない。**`tests/test_request.py` が、命名可能な全ライブラリに障壁の記録があることを
+固定しているので、**次にライブラリを足すときに障壁を書かないと落ちる。**
+
+#### BBB の knob は作っていない
+
+数字付きの公表ルールがこのリポジトリに記録されていない。作れば全設定が `relaxation` か
+`unjustified` になり、**「published か、閾値を動かしただけか」で1行で監査できるという
+registry の性質が崩れる。**禁忌70（文献に閾値が無いことがある）と同じ理由。
+
+答えられるのは **BBB についての問い**（この集合は B3DB の適用範囲内か、何件測れば入るか）で、
+**BBB を eNTRy 条件で screening することではない。**
+
+#### 測ると、分かることがある
+
+ZINC -O を eNTRy 2条件で絞った集合の、測定済み集合への最近傍（中央値）:
+
+```
+IMI-COMBINE (activity, 22,051)         0.212
+B3DB (blood-brain barrier, 7,805)      0.202   ← 2位
+CHAMP (permeability, 1,132)            0.168
+GramNegAccum (permeability, 197)       0.141
+```
+
+**グラム陰性の規則で絞った集合が、グラム陰性の実測集合より BBB の実測集合に近い。**
+どれも閾値 0.4 に届かないので判定は変わらないが、**どのデータが足りないかの読み方が変わる。**
+障壁を併記したから読める形になった。
 
 ### 絶対に守る不変条件（3つ）
 
@@ -1010,7 +1054,7 @@ nix-shell --run 'cd engine && cargo test --release'
 nix-shell --run 'OCCAM_FACTORS="1 10 100 1000" python3 -m unittest tests/test_memory_invariant.py'
 ```
 
-現在 Python 119本 + Rust 11本が通る（2026-10-10〜11 に `test_render.py` 26本、
+現在 Python 124本 + Rust 11本が通る（2026-10-10〜11 に `test_render.py` 26本、
 `test_request.py` 20本、`test_no_duplicated_counts.py` 6本、`test_contraindications.py` 19本を追加）。
 
 ---

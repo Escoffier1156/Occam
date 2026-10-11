@@ -332,6 +332,14 @@ def nearest_training_set(survivors, candidates=None, size=300):
         "IMI-COMBINE": ("activity", WORK / "imi_clean.parquet"),
         "CHAMP": ("permeability", WORK / "champ.parquet"),
         "GramNegAccum": ("permeability", WORK / "gna.parquet"),
+        # A different barrier, and listed for exactly that reason. If a set
+        # is nearer to the blood-brain barrier data than to anything about
+        # Gram-negatives, that is worth a reader seeing: it says the library
+        # resembles brain-penetrant chemistry, which is not what was asked
+        # for. Naming the barrier beside each set is what makes the row
+        # readable rather than a bare distance.
+        "B3DB": ("blood-brain barrier",
+                 WORK / "B3DB_classification.parquet"),
     }
     chosen, total = sample_survivors(survivors, size)
     gen = generator()
@@ -347,7 +355,9 @@ def nearest_training_set(survivors, candidates=None, size=300):
         if not Path(path).exists():
             continue
         try:
-            rows = pq.read_table(path, columns=["smiles"]).column(0).to_pylist()
+            names = pq.read_schema(path).names
+            column = "smiles" if "smiles" in names else "SMILES"
+            rows = pq.read_table(path, columns=[column]).column(0).to_pylist()
         except Exception:
             continue
         reference = [gen.GetFingerprint(m) for m in

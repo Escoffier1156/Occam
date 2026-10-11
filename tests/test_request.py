@@ -281,3 +281,46 @@ class TheExactRecountCanBeSkippedButNeverSilently(unittest.TestCase):
         import render as render_mod
 
         self.assertIn("too close", render_mod.state("uncertain"))
+
+
+class ConditionsBelongToOneBarrier(unittest.TestCase):
+    """The registry's settings are the eNTRy rules, which are about entry
+    into Gram-negative bacteria. Pointed at a library that measures another
+    barrier they would run to completion and report nothing wrong -- the
+    silence the charge-slice check exists to break, in another place."""
+
+    def test_the_registry_records_which_barrier_it_is_about(self):
+        self.assertIn("Gram-negative", knobs_mod.APPLIES_TO["barrier"])
+        self.assertIn("Richter", knobs_mod.APPLIES_TO["source"])
+        self.assertIn("blood-brain", knobs_mod.APPLIES_TO["not"])
+
+    def test_the_bbb_data_is_nameable(self):
+        """It has to be readable as a request before a mismatch can be
+        reported; discarding the word would just lose it."""
+        spec, notes = occam_mod.parse(
+            "120 distinct scaffolds from the B3DB library, primary amine")
+        self.assertEqual(spec["library"],
+                         "data/work/B3DB_classification.parquet")
+        for phrase in ("blood-brain barrier", "BBB"):
+            spec, _ = occam_mod.parse(
+                f"120 distinct scaffolds from the {phrase} set, primary amine")
+            self.assertEqual(spec["library"],
+                             "data/work/B3DB_classification.parquet")
+
+    def test_every_named_library_has_its_barrier_recorded(self):
+        """An unrecorded library must not default to matching the registry."""
+        for _, path in occam_mod.LIBRARIES:
+            self.assertIn(path, occam_mod.LIBRARY_BARRIER,
+                          f"{path} has no barrier recorded, so a mismatch "
+                          f"against it cannot be detected")
+
+    def test_the_bbb_library_is_not_the_registry_barrier(self):
+        self.assertNotEqual(
+            occam_mod.LIBRARY_BARRIER["data/work/B3DB_classification.parquet"],
+            knobs_mod.APPLIES_TO["barrier"])
+
+    def test_zinc_has_no_barrier_because_it_is_unmeasured(self):
+        """ZINC is a catalogue. It measures nothing, so it contradicts
+        nothing, and the eNTRy conditions are what the request brings to it."""
+        for path in ("data/work/zinc", "data/work/zinc_O", "data/work/zinc_P"):
+            self.assertIsNone(occam_mod.LIBRARY_BARRIER[path])
