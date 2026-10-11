@@ -715,26 +715,24 @@ def main():
                 print(line)
         else:
             body = screenable_mod.report(survivors)
-            screenable_mod.show(body)
-            (args.out_dir / "screenable.json").write_text(
-                json.dumps(body, indent=2) + "\n")
 
-            # The applicability verdict says the model cannot speak about this
-            # set. On its own that is where the answer used to stop, and a
-            # verdict that names no next step is half an answer
-            # (contraindication 77). What closes it is a count: how many
-            # compounds would have to be measured for the set to stop being an
-            # extrapolation. It is only computed when the verdict needs it.
+            # Computed before the report is printed so that the count of what
+            # would close the verdict appears inside the verdict rather than
+            # as a second document after it.
             extrapolating = str(body["applicability"]["verdict"]).startswith(
                 "answerable_but_extrapolating")
+            cost = None
             if extrapolating and not args.no_measure:
-                print()
-                measured_cost = True
                 cost = what_to_measure_mod.report(
                     survivors,
                     dataset=render_mod.library_phrase(library_check["library"])
                     if library_check else spec["library"])
-                what_to_measure_mod.show(cost)
+                measured_cost = True
+
+            screenable_mod.show(body, cost)
+            (args.out_dir / "screenable.json").write_text(
+                json.dumps(body, indent=2) + "\n")
+            if cost is not None:
                 (args.out_dir / "what_to_measure.json").write_text(
                     json.dumps(cost, indent=2) + "\n")
 

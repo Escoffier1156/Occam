@@ -500,7 +500,7 @@ def report(survivors, features=WORK / "imi_fp" / "features.parquet",
     }
 
 
-def show(body):
+def show(body, cost=None):
     """The two verdicts, said as claims about the screen rather than as fields.
 
     A verdict is the one line a reader carries away, so none of it is printed
@@ -560,6 +560,34 @@ def show(body):
         for line in render_mod.wrap(f"this rules out: "
                                     f"{control['what_it_rules_out']}",
                                     indent=8, hanging=10):
+            print(line)
+
+    # The count of what would close this verdict belongs to the verdict, not
+    # to a second document printed after it. py/what_to_measure.py computes
+    # it; this prints it where the reader is already standing.
+    if cost and cost.get("measurable"):
+        sizes = cost["neighbourhood_sizes"]
+        band = ", ".join(f"{row['covered_at']:.2f}: {row['compounds']:,}"
+                         for row in cost["sensitivity"])
+        print(f"      what would close it: "
+              f"{cost['compounds_to_measure']:,} compounds measured, one per "
+              f"neighbourhood")
+        print(f"        at Tanimoto {cost['covered_at']}. "
+              f"{cost['for_half_the_set']:,} of them cover half the set, "
+              f"{cost['for_four_fifths']:,} cover four fifths")
+        print(f"        {sizes['singletons']:,} neighbourhoods hold one "
+              f"compound, so the tail is one purchase each")
+        for line in render_mod.wrap(
+                f"the count is a property of the threshold: {band}, moving "
+                f"{cost['sensitivity_spread']}x across the band",
+                indent=8, hanging=10):
+            print(line)
+        for line in render_mod.wrap(
+                "this is coverage, not accuracy: it leaves no part of the set "
+                "further than the threshold from something measured, and "
+                "promises nothing about how a model fitted on the results "
+                "ranks the rest. No compound is emitted.", indent=8,
+                hanging=10):
             print(line)
 
     m = body["activity_model"]
