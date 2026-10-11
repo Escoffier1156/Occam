@@ -136,6 +136,28 @@ class RecordShapesDoNotReachTheScreen(unittest.TestCase):
         self.assertIn("about 118", phrase)
         self.assertIn("sketch", phrase)
 
+    def test_a_provenance_says_what_it_licenses(self):
+        self.assertEqual(render_mod.provenance("published"),
+                         "inside a published rule")
+        self.assertIn("no chemical claim",
+                      render_mod.provenance("relaxation"))
+
+    def test_a_provenance_keeps_its_secondary_source_note(self):
+        """The 600 Da bound is published via a verbatim quote in a paper that
+        was read, from one that was not. Dropping the parenthetical would
+        promote it to a source this project checked."""
+        value = knobs_mod.setting("weight", "mw_under_600")["provenance"]
+        phrase = render_mod.provenance(value)
+        self.assertIn("inside a published rule", phrase)
+        self.assertIn("secondary", phrase)
+
+    def test_every_provenance_in_the_registry_is_sayable(self):
+        for knob, body in knobs_mod.KNOBS.items():
+            for setting in body["settings"]:
+                phrase = render_mod.provenance(setting["provenance"])
+                self.assertNotEqual(phrase, setting["provenance"],
+                                    f"{setting['name']} prints its field value")
+
     def test_a_feasibility_state_is_a_statement(self):
         self.assertEqual(render_mod.state("infeasible"),
                          "cannot fill the request")

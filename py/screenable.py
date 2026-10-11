@@ -323,10 +323,15 @@ def nearest_training_set(survivors, candidates=None, size=300):
     library present, so the answer is "this one, at this distance" rather than
     "get more data".
     """
+    # Name and what it measures. The row count used to be written into the
+    # name as well, and the same count was then printed twice in one report --
+    # once from this literal and once from the sentence that states the scope.
+    # Two copies of a count drift apart the moment a set is re-ingested. The
+    # count below comes from the rows this comparison actually read.
     candidates = candidates or {
-        "IMI-COMBINE (activity, 22,051)": WORK / "imi_clean.parquet",
-        "CHAMP (permeability, 1,132)": WORK / "champ.parquet",
-        "GramNegAccum (permeability, 197)": WORK / "gna.parquet",
+        "IMI-COMBINE": ("activity", WORK / "imi_clean.parquet"),
+        "CHAMP": ("permeability", WORK / "champ.parquet"),
+        "GramNegAccum": ("permeability", WORK / "gna.parquet"),
     }
     chosen, total = sample_survivors(survivors, size)
     gen = generator()
@@ -338,7 +343,7 @@ def nearest_training_set(survivors, candidates=None, size=300):
     if not probes:
         return []
     out = []
-    for name, path in candidates.items():
+    for name, (measures, path) in candidates.items():
         if not Path(path).exists():
             continue
         try:
@@ -352,6 +357,7 @@ def nearest_training_set(survivors, candidates=None, size=300):
         nearest = [max(DataStructs.BulkTanimotoSimilarity(p, reference))
                    for p in probes]
         out.append({"training_set": name,
+                    "measures": measures,
                     "structures": len(reference),
                     "median_nearest": round(st.median(nearest), 3),
                     "max_nearest": round(max(nearest), 3),
@@ -571,7 +577,12 @@ def show(body):
 
     revisions = body.get("suggested_revisions") or {}
     if revisions:
-        print("\nwhat could be done instead "
+        # Two blocks answer "what instead", and they answer different
+        # questions: this one asks which measured set is nearest, and
+        # py/what_to_measure.py asks how much new measuring would close the
+        # gap. The headings name the question so the pair does not read as one
+        # answer split in half.
+        print("\nwhich measured set is nearest "
               "(measured, not a chemical suggestion):")
         for name, body_ in revisions.items():
             print()
@@ -585,7 +596,8 @@ def show(body):
                     # The tick marks the training sets this library is inside.
                     # It is the column a reader scans, so it earns the mark.
                     mark = "*" if row["inside_threshold"] >= 0.5 else " "
-                    print(f"    {mark} {row['training_set']:34} "
+                    label = render_mod.training_set_phrase(row)
+                    print(f"    {mark} {label:38} "
                           f"median nearest {row['median_nearest']:.3f}, "
                           f"{row['inside_threshold']:.1%} at or above "
                           f"Tanimoto {EXTRAPOLATION_BELOW}")

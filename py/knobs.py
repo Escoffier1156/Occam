@@ -115,25 +115,44 @@ KNOBS = {
              "source": "Richter et al. 2017 set no upper bound on size"},
         ],
     },
+}
+
+# The order a specification's settings are enumerated and reported in. Derived
+# from the registry rather than written out, because it was written out in four
+# places and retiring a knob had to find all four.
+ORDER = tuple(KNOBS)
+
+# Knobs that were in the registry and were taken out, with what the decision
+# rested on. A retired knob is kept here rather than deleted so that a request
+# naming it can be refused with a reason instead of falling into the list of
+# phrases nothing was read from.
+RETIRED = {
     "charge": {
-        "question": "the formal charge of the enumerated structure",
-        "caution": "MEASURED, 2026-10-10, and the earlier reading of this was "
-                   "wrong. This knob reads the formal charge of the structure as "
-                   "drawn, and on ZINC22 that is very nearly a no-op: in "
-                   "zinc-22x H29P240 every slice is written in neutral form, so "
-                   "19,971 of 20,000 molecules in the -O (+1) slice and all of "
-                   "the -P (+2) slice carry formal charge 0. ZINC's charge "
-                   "suffix is the predicted protonation state at pH 7.4, not the "
-                   "charge of the written structure. The two are different "
-                   "quantities and this knob only sees the second. Selecting a "
-                   "library slice is what actually chooses the charge state; see "
-                   "BLOCKED['library_charge_slice'].",
-        "settings": [
-            {"name": "neutral_only", "charge": 0, "provenance": RELAXATION,
-             "source": "chosen by the request; the library slice is neutral anyway"},
-            {"name": "any_charge", "charge": None, "provenance": RELAXATION,
-             "source": "the request's restriction removed"},
-        ],
+        "retired": "2026-10-11",
+        "was": "the formal charge of the enumerated structure",
+        "why": "the knob did not measure the quantity a request means by "
+               "charge. ZINC22 splits each tranche by PREDICTED PROTONATION "
+               "STATE at pH 7.4; this knob read the FORMAL CHARGE OF THE "
+               "STRUCTURE AS DRAWN. The two are different quantities that "
+               "share a word, and only the first is what a request about "
+               "charge is asking for. The measurement below shows the knob "
+               "cannot reach the population it appears to select: in the "
+               "sample taken from the -M slice, the slice whose molecules are "
+               "predicted to carry -1, no molecule was drawn with a negative "
+               "formal charge at all.",
+        "not_the_reason": "the knob was not retired for being inert. It is "
+                          "not inert: 23 of 20,000 molecules sampled from the "
+                          "-O slice carry a formal charge of +1, so the "
+                          "setting does remove molecules. Whether that "
+                          "removal is visible depends on how many survivors a "
+                          "screen has, which is a property of the run and not "
+                          "of the knob.",
+        "where_it_went": "a request about charge selects a library slice. See "
+                         "BLOCKED['library_charge_slice'] for the slices and "
+                         "what each one means. py/occam.py refuses a charge "
+                         "word rather than reading it as a slice, for the same "
+                         "reason it refuses 'MW under 500' rather than "
+                         "rounding it to 450.",
     },
 }
 
@@ -151,6 +170,58 @@ BLOCKED = {
                "charged compounds accumulating against 0 of 39 neutral and 0 of "
                "20 negative, so -N is the slice their data says does not "
                "accumulate. The screen of 2026-10-09 used -N alone.",
+        "slices": {
+            "-N": "predicted neutral at pH 7.4",
+            "-O": "predicted +1 at pH 7.4",
+            "-M": "predicted -1 at pH 7.4",
+            "-P": "predicted +2 or more at pH 7.4",
+        },
+        # Structured so that a refusal can offer a measured alternative rather
+        # than the advice "screen -O or -P instead", which is a sentence and
+        # not an answer. The same figures appear in the prose of "why" above;
+        # these are the ones code reads.
+        "primary_amine_share": {"-N": 0.0021, "-O": 0.0246, "-P": 0.1306},
+        "primary_amine_share_measured_on": "zinc-22x H29P240, 20,000 per slice",
+        "where": {"-N": "data/work/zinc", "-O": "data/work/zinc_O",
+                  "-M": "data/work/zinc_M", "-P": "data/work/zinc_P"},
+        # This replaces a sentence that read "every slice is written in neutral
+        # form". Three of the four slices sampled contain molecules drawn with
+        # a formal charge, so that sentence was too strong. The numbers below
+        # carry the tranche, the sample size and the seed, because the sentence
+        # they replace stated a count of 19,971 that nothing recorded how to
+        # reproduce -- and a rerun got 19,977.
+        "formal_charge_as_drawn": {
+            "what_this_is": "a measurement of THIS sample, not a property of "
+                            "ZINC22. Run py/charge_slices.py to reproduce it.",
+            "tranche": "zinc-22x H29P240",
+            "sample": 20000,
+            "seed": 0,
+            "measured": "2026-10-11",
+            "per_slice": {
+                "-N": {"sampled": 20000, "formal_charge_zero": 20000,
+                       "other": {}},
+                "-O": {"sampled": 20000, "formal_charge_zero": 19977,
+                       "other": {"+1": 23}},
+                "-P": {"sampled": 17775, "formal_charge_zero": 17775,
+                       "other": {},
+                       "note": "the whole slice, not a sample"},
+                "-M": {"sampled": 20000, "formal_charge_zero": 19989,
+                       "other": {"+1": 11},
+                       "note": "drawn from a pool of the first 80,000 "
+                               "molecules of a PARTIAL download of this "
+                               "slice. The pool is a prefix of a prefix, so "
+                               "this is a measurement of that pool and not of "
+                               "the slice"},
+            },
+            "what_it_does_not_say": "a count of 0 in a sample of 20,000 is an "
+                                    "observation of none, not an absence. It "
+                                    "bounds the share at roughly 0.015% at "
+                                    "95%, and no lower. In particular, no "
+                                    "molecule drawn with a NEGATIVE formal "
+                                    "charge appeared in the -M sample, which "
+                                    "is a statement about that sample of that "
+                                    "partial download.",
+        },
         "what_would_unblock": "download the -O and -P slices of the same tranche "
                               "and screen them too, or make the slice an "
                               "explicit field of the request so it cannot be "
@@ -196,8 +267,28 @@ BLOCKED = {
 }
 
 
+class Retired(KeyError):
+    """A record names a knob that has since been taken out of the registry.
+
+    Raised rather than worked around. A record written under an older registry
+    describes a screen this code would not run, and quietly dropping the knob
+    would reinterpret what was asked -- which is the failure this whole module
+    is arranged to prevent.
+    """
+
+
 def settings_of(knob):
+    if knob in RETIRED and knob not in KNOBS:
+        body = RETIRED[knob]
+        raise Retired(
+            f"{knob!r} was retired on {body['retired']}. {body['why']} "
+            f"Where it went: {body['where_it_went']}")
     return KNOBS[knob]["settings"]
+
+
+def unreadable(names):
+    """Which of these knob names this registry can no longer act on."""
+    return [name for name in names if name not in KNOBS]
 
 
 def setting(knob, name):

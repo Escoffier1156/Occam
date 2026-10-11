@@ -24,7 +24,14 @@ is printed as-is, never guessed at from its spelling.
 """
 
 import re
+import sys
 import textwrap
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parent.parent
+sys.path.insert(0, str(ROOT / "py"))
+
+import knobs as knobs_mod  # noqa: E402
 
 # Prose is wrapped rather than left to the terminal, because the lines that
 # matter most here are the longest: a caution runs to three lines and a single
@@ -46,7 +53,6 @@ PROPERTY = {
     "nitrogen": "ionisable nitrogen",
     "rotatable": "flexibility",
     "weight": "molecular weight",
-    "charge": "formal charge as drawn",
 }
 
 # What each setting asks for, as a phrase that can be read aloud. The numbers
@@ -63,8 +69,6 @@ READS = {
     ("weight", "mw_under_450"): "under 450 Da",
     ("weight", "mw_under_600"): "under 600 Da",
     ("weight", "mw_unbounded"): "no upper bound on weight",
-    ("charge", "neutral_only"): "formal charge zero",
-    ("charge", "any_charge"): "any formal charge",
 }
 
 # One line naming where the setting comes from. The registry's `source` is the
@@ -84,8 +88,6 @@ CITE = {
     ("weight", "mw_under_600"):
         "O'Shea & Moser 2008, quoted verbatim in Richter 2017",
     ("weight", "mw_unbounded"): "Richter 2017 sets no bound on size",
-    ("charge", "neutral_only"): "chosen by the request",
-    ("charge", "any_charge"): "the request's restriction removed",
 }
 
 # The one sentence a reader has to see even if they read nothing else about the
@@ -97,9 +99,6 @@ CAUTION = {
               "between accumulation and molecular weight; measured here, "
               "450 -> 600 changes survivors 1.1x against 2.8x for rotatable "
               "bonds. Read it as a size bound.",
-    "charge": "nearly a no-op on ZINC22, where every slice is written in "
-              "neutral form. The library slice is what chooses the charge "
-              "state, not this.",
 }
 
 # Function words, plus the nouns that name the request's own machinery. A
@@ -175,7 +174,26 @@ def verdict(value):
     return VERDICT.get(value, str(value).replace("_", " "))
 
 
-KNOB_ORDER = ("nitrogen", "rotatable", "weight", "charge")
+# The two kinds of provenance a setting may have, as what they license rather
+# than as the words the registry files them under. The distinction is the whole
+# audit: either a paper already says it, or a number was moved and no claim was
+# made.
+PROVENANCE = {
+    "published": "inside a published rule",
+    "relaxation": "a threshold moved; no chemical claim",
+    "unjustified": "A NEW CHEMICAL CLAIM - must never be proposed",
+}
+
+
+def provenance(value):
+    """A provenance as what it licenses. A trailing parenthetical on a
+    published entry, such as the secondary-source note on the 600 Da bound,
+    is kept."""
+    for key, phrase in PROVENANCE.items():
+        if str(value).startswith(key):
+            tail = str(value)[len(key):].strip()
+            return f"{phrase} {tail}" if tail else phrase
+    return str(value).replace("_", " ")
 
 
 def spec_phrase(choices):
@@ -185,8 +203,8 @@ def spec_phrase(choices):
     is the right name for a key in sweep.json and the wrong one for a line a
     reader has to compare against another line.
     """
-    return "; ".join(reads(knob, choices[knob]) for knob in KNOB_ORDER
-                     if knob in choices)
+    return "; ".join(reads(knob, choices[knob])
+                     for knob in knobs_mod.ORDER if knob in choices)
 
 
 # How a specification's feasibility state is said. These are field values
@@ -292,6 +310,22 @@ def counts_phrase(labels):
         return str(labels)
     return ", ".join(f"{value:,} {str(key).replace('_', ' ')}"
                      for key, value in labels.items())
+
+
+def training_set_phrase(row):
+    """A training set named with the count the comparison actually read.
+
+    The count used to be part of the set's name, written as a literal, and the
+    same number was printed again by the sentence stating the scope of the
+    counts. One output carrying a count from two independent literals is the
+    arrangement that drifts: re-ingest the set and only one of them moves.
+    """
+    parts = [part for part in (row.get("measures"),
+                              f"{row['structures']:,}"
+                              if row.get("structures") is not None else None)
+             if part]
+    return (f"{row['training_set']} ({', '.join(parts)})" if parts
+            else row["training_set"])
 
 
 def label_phrase(key):

@@ -47,10 +47,11 @@ import pyarrow.parquet as pq
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "py"))
 import knobs as knobs_mod  # noqa: E402
+import render as render_mod  # noqa: E402
 import smiles as smiles_mod  # noqa: E402
 import sweep as sweep_mod  # noqa: E402
 
-from rdkit import Chem, RDLogger  # noqa: E402
+from rdkit import RDLogger  # noqa: E402
 from rdkit.Chem import Descriptors, rdMolDescriptors  # noqa: E402
 from rdkit.Chem.Scaffolds import MurckoScaffold  # noqa: E402
 
@@ -111,9 +112,6 @@ def exact_scaffold_count(part_dir, choices, limit=None):
             continue
         weight = Descriptors.MolWt(mol)
         rotatable = rdMolDescriptors.CalcNumRotatableBonds(mol)
-        charge = Chem.GetFormalCharge(mol)
-        if variant.charge is not None and charge != variant.charge:
-            continue
         if weight >= variant.mw_limit or rotatable > variant.rot_limit:
             continue
         if not nitrogen[choices["nitrogen"]]["test"](mol):
@@ -129,6 +127,17 @@ def exact_scaffold_count(part_dir, choices, limit=None):
 
 def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
     baseline = sweep_report["baseline"]
+    # A sweep written under an older registry can name a knob that has since
+    # been retired. Saying so beats a KeyError from four frames down, and
+    # beats dropping the knob, which would silently turn the record into a
+    # description of a different screen.
+    stale = knobs_mod.unreadable(baseline)
+    if stale:
+        raise knobs_mod.Retired(
+            f"this sweep was written with {', '.join(sorted(stale))}, which "
+            f"this registry no longer has. Rerun the sweep; the record stays "
+            f"valid for what it recorded, but a proposal cannot be built on a "
+            f"knob that is gone.")
     rows = [classify(s, required, baseline) for s in sweep_report["specifications"]]
 
     uncertain = [r for r in rows if r["state_by_sketch"] == "uncertain"]
@@ -206,51 +215,106 @@ def main():
     args = parser.parse_args()
 
     report = json.loads(args.sweep.read_text())
-    result = propose(report, args.required, args.parts, args.limit or None,
-                     exact=not args.no_exact)
+    try:
+        result = propose(report, args.required, args.parts, args.limit or None,
+                         exact=not args.no_exact)
+    except knobs_mod.Retired as retired:
+        print(f"stopping: {retired.args[0]}")
+        return 1
     args.out.write_text(json.dumps(result, indent=2) + "\n")
 
-    print(f"request: {args.required} distinct scaffolds")
-    print(f"as asked: {' + '.join(result['request']['specification_as_asked'].values())}")
-    print(f"\nverdict: {result['verdict']}\n")
+    show(result, args.required)
+    print(f"\n-> {args.out}")
+    return 0
+
+
+def show(result, required):
+    """The proposal, with the frontier as the thing a reader is here for.
+
+    The frontier is the whole reason there is no weighted score: the ranking
+    cannot encode a preference between fewer rotatable bonds and a higher
+    molecular weight, so every specification that clears the request is
+    returned and the trade is made by a person. A table of registry
+    identifiers cannot be read that way, which means printing them here
+    deletes the design.
+    """
+    asked = result["request"]["specification_as_asked"]
+    print(f"request: {required:,} distinct scaffolds")
+    for line in render_mod.wrap(f"as asked: {render_mod.spec_phrase(asked)}",
+                                hanging=2):
+        print(line)
+    print()
+    for line in render_mod.wrap(f"verdict: {result['verdict']}", hanging=2):
+        print(line)
 
     if result.get("recommended"):
         r = result["recommended"]
-        print(f"recommended: {r['specification']}")
-        print(f"  survivors {r['survivors']:,}, scaffolds ~{r['scaffolds_estimated']:,}")
-        print(f"  {r['steps_from_baseline']} relaxation step(s) from what was asked")
+        print("\nthe request as asked:" if not r["loosened"]
+              else "\nrecommended instead:")
+        for line in render_mod.wrap(render_mod.spec_phrase(r["choices"]),
+                                    indent=2, hanging=4):
+            print(line)
+        print(f"  {r['survivors']:,} molecules pass, "
+              f"{render_mod.scaffold_phrase(r)}")
         for knob, setting in r["loosened"].items():
             body = knobs_mod.setting(knob, setting)
-            print(f"  loosened {knob} -> {setting}  [{body['provenance']}]")
-            print(f"    {body['source']}")
-        if not r["loosened"]:
-            print("  nothing loosened")
+            print(f"  loosened {render_mod.prop(knob)} to "
+                  f"{render_mod.reads(knob, setting)}")
+            for line in render_mod.wrap(body["source"], indent=4, hanging=6):
+                print(line)
 
     if result.get("as_asked"):
         a = result["as_asked"]
-        print(f"\nas asked would give: survivors {a['survivors']:,}, "
-              f"scaffolds ~{a['scaffolds_estimated']:,} -> {a['state']}")
+        print(f"\nas asked would give: {a['survivors']:,} molecules, "
+              f"{render_mod.scaffold_phrase(a)} - "
+              f"{render_mod.state(a['state'])}")
 
     if result.get("best_reachable"):
         b = result["best_reachable"]
-        print(f"best reachable: {b['specification']}")
-        print(f"  scaffolds ~{b['scaffolds_estimated']:,} against {args.required:,} required")
-        for line in result["what_would_unblock"]:
-            print(f"  -> {line}")
+        print("\nthe best any registered setting reaches:")
+        for line in render_mod.wrap(render_mod.spec_phrase(b["choices"]),
+                                    indent=2, hanging=4):
+            print(line)
+        print(f"  {render_mod.scaffold_phrase(b)}, "
+              f"against {required:,} required")
+        print("\nwhat would unblock it:")
+        for item in result["what_would_unblock"]:
+            for line in render_mod.wrap(item, indent=2, hanging=4):
+                print(line)
 
-    print(f"\nfrontier ({len(result['frontier'])} shown):")
-    print(f"  {'specification':66} {'surv':>9} {'scaf':>9} {'steps':>6}  provenance")
-    for row in result["frontier"]:
-        print(f"  {row['specification']:66} {row['survivors']:>9,} "
-              f"{row['scaffolds_estimated']:>9,} {row['steps_from_baseline']:>6}  "
-              f"{row['provenance']['weakest']}")
+    frontier = result["frontier"]
+    print(f"\nthe trade, {len(frontier)} specification(s) that clear the "
+          f"request:")
+    print("  there is no score ranking these. They are ordered by how little "
+          "was loosened,")
+    print("  and which one to run is a judgement about the chemistry.")
+    for index, row in enumerate(frontier, 1):
+        steps = row["steps_from_baseline"]
+        moved = ("nothing loosened" if not steps
+                 else f"{steps} step(s) looser")
+        print()
+        for line in render_mod.wrap(
+                f"{index}. {render_mod.spec_phrase(row['choices'])}",
+                indent=2, hanging=5):
+            print(line)
+        print(f"     {row['survivors']:,} molecules pass, "
+              f"{render_mod.scaffold_phrase(row)}")
+        for line in render_mod.wrap(
+                f"{moved}; weakest provenance: "
+                f"{render_mod.provenance(row['provenance']['weakest'])}",
+                indent=5, hanging=7):
+            print(line)
 
-    print("\nknobs that cannot be turned:")
+    print("\nrequirements that cannot be turned at all:")
     for knob, body in result["blocked_knobs"].items():
-        print(f"  {knob}: {body['why']}")
-        print(f"    would need: {body['what_would_unblock']}")
-    print(f"\n-> {args.out}")
+        for line in render_mod.wrap(f"{knob.replace('_', ' ')}: {body['why']}",
+                                    indent=2, hanging=4):
+            print(line)
+        for line in render_mod.wrap(f"would need: "
+                                    f"{body['what_would_unblock']}",
+                                    indent=4, hanging=6):
+            print(line)
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

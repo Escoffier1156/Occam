@@ -120,18 +120,39 @@ stopping: the library contradicts the published rule the request is built on.
 > と書いている。実測でも 450→600 の緩和は 1.1倍しか効かない（回転結合は 2.8倍）。
 > サイズ・薬らしさの制約として使うこと。
 
-### charge
+### charge — **引退しました（2026-10-11）。書くと停止します**
 
-| 書き方 | 設定 |
+電荷の要求は **knob ではなくライブラリのスライスで書きます。**`neutral` `any charge`
+`zero formal charge` `cationic` などを条件として書くと、丸めずに停止します。
+
+```
+refused rather than rounded:
+  "neutral": charge is chosen by the library slice, not by a requirement. The
+    retired knob read the formal charge of the structure as drawn, which is a
+    different quantity from the protonation state ZINC predicts at pH 7.4
+    registered slices: -N (predicted neutral at pH 7.4), -O (predicted +1 at
+      pH 7.4), -M (predicted -1 at pH 7.4) or -P (predicted +2 or more at pH
+      7.4)
+    name the slice as part of the library instead, for example "cationic ZINC"
+      for -O
+
+stopping: the request named something this cannot read as a requirement.
+  Nothing was rounded and nothing was redirected to a different field.
+```
+
+**`neutral ZINC` や `cationic ZINC` は従来どおり通ります。**ライブラリ句として先に
+読まれるので、スライス名として機能します。停止するのは条件として独立に書いた場合です。
+
+#### 引退の理由は inert だからではない
+
+| | |
 |---|---|
-| `neutral` / `zero formal charge` / `formal charge of zero` | `neutral_only` |
-| `any charge` | `any_charge` |
+| **理由** | knob が別の量を測っていた。ZINC は**予測プロトン化状態**で分け、knob は**描画上の形式電荷**を読んでいた |
+| **決定的な観測** | `-M`（−1 と予測される群）の標本に、**負の形式電荷で描かれた分子が1件も無かった。**knob は陰イオン集団に到達できない |
+| **理由でないこと** | inert だから、ではない。`-O` の標本 20,000 件中 **23件は +1 で描かれている**ので、設定は実際に分子を落とす。落ちたことが見えるかは run の生存数の性質で、knob の性質ではない |
 
-> **注意：この knob は ZINC22 でほぼ無効。**全スライスの SMILES が中性形で書かれて
-> いるため、27比較中27で生存数が変わらなかった。画面には
-> `requirements that did not change the result:` の下に
-> `formal charge as drawn filtered nothing on this library` と出る。
-> **電荷を選んでいるのはスライスであってこの knob ではない。**
+`py/knobs.py` の `RETIRED['charge']` と `BLOCKED['library_charge_slice']` に根拠が
+入っています。測定は `py/charge_slices.py` で再現できます。
 
 ---
 
@@ -221,11 +242,18 @@ targets named in the request:
 
 ## 7. 所要時間
 
-| ライブラリ | 54仕様の掃引 |
+掃引は **27仕様**（3 knob × 3設定）。**charge の引退前は 54仕様だったので、それより
+前の記録に出てくる「54仕様」はその時点の registry のことです。**
+
+| ライブラリ | 掃引（54仕様で実測） |
 |---|---|
 | -P（17,775件） | **約1分**。試運転向き |
 | -O（636,669件） | **約20分** |
 | -N（1,000,000件） | 約40分 |
+
+**上の時間は 54仕様のときの実測です。**27仕様で測り直していないので、置き換えずに
+出典のまま残しています。1パスなので仕様数は所要時間を支配しませんが、**測っていない
+数字を書かないために据え置きます。**
 
 `--limit N` で打ち切れる。**`--dry-run` なら読み取りだけで即時。**
 
@@ -246,8 +274,7 @@ occam "256 distinct scaffolds from the cationic ZINC library, \
   "requirements": [
     { "knob": "nitrogen",  "setting": "primary_amine",    "strict": false },
     { "knob": "rotatable", "setting": "rotatable_le_5",   "strict": false },
-    { "knob": "weight",    "setting": "mw_under_450",     "strict": true  },
-    { "knob": "charge",    "setting": "neutral_only",     "strict": false }
+    { "knob": "weight",    "setting": "mw_under_450",     "strict": true  }
   ]
 }
 ```

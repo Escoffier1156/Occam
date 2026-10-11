@@ -172,16 +172,27 @@ def rule_share(library_path, patterns, sample=SAMPLE):
     million molecules. The eNTRy primary amine turned out to admit 254 of a
     million, which is a design verdict, not a detail.
     """
-    import candidates as candidates_mod
+    import knobs as knobs_mod
 
     from rdkit.Chem import Descriptors, rdMolDescriptors
 
+    # The patterns and the limits come from the registry, which is where a
+    # proposal draws them from too. They were taken from py/candidates.py
+    # here, so the primary-amine definition existed in two files -- and
+    # py/candidates.py is the demoted candidate generator, so the product path
+    # depended on a module it does not ship. The two copies were still
+    # identical when this was changed; contraindication 31 is the same trap in
+    # the same file, found after they had already diverged.
     known = {
-        "primary_amine": lambda m: m.HasSubstructMatch(candidates_mod.ENTRY_AMINE),
-        "basic_nitrogen": lambda m: m.HasSubstructMatch(candidates_mod.BASIC_N),
-        "rotatable_le_5": lambda m: rdMolDescriptors.CalcNumRotatableBonds(m) <= 5,
-        "mw_under_450": lambda m: Descriptors.MolWt(m) < 450,
-        "mw_under_600": lambda m: Descriptors.MolWt(m) < 600,
+        "primary_amine": knobs_mod.setting("nitrogen", "primary_amine")["test"],
+        "basic_nitrogen": knobs_mod.setting("nitrogen", "basic_nitrogen")["test"],
+        "rotatable_le_5": lambda m: rdMolDescriptors.CalcNumRotatableBonds(m)
+                                    <= knobs_mod.setting("rotatable",
+                                                         "rotatable_le_5")["limit"],
+        "mw_under_450": lambda m: Descriptors.MolWt(m) < knobs_mod.setting(
+            "weight", "mw_under_450")["limit"],
+        "mw_under_600": lambda m: Descriptors.MolWt(m) < knobs_mod.setting(
+            "weight", "mw_under_600")["limit"],
         "neutral": lambda m: sum(a.GetFormalCharge() for a in m.GetAtoms()) == 0,
     }
     unknown = [p for p in patterns if p not in known]

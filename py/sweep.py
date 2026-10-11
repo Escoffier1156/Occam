@@ -49,7 +49,7 @@ sys.path.insert(0, str(ROOT / "py"))
 import knobs as knobs_mod  # noqa: E402
 import smiles as smiles_mod  # noqa: E402
 
-from rdkit import Chem, RDLogger  # noqa: E402
+from rdkit import RDLogger  # noqa: E402
 from rdkit.Chem import Descriptors, rdMolDescriptors  # noqa: E402
 from rdkit.Chem.Scaffolds import MurckoScaffold  # noqa: E402
 
@@ -125,12 +125,13 @@ class Variant:
         self.nitrogen = knobs_mod.setting("nitrogen", choices["nitrogen"])
         self.rot_limit = knobs_mod.setting("rotatable", choices["rotatable"])["limit"]
         self.mw_limit = knobs_mod.setting("weight", choices["weight"])["limit"]
-        self.charge = knobs_mod.setting("charge", choices["charge"])["charge"]
 
     @property
     def name(self):
-        return " + ".join(self.choices[k] for k in
-                          ("nitrogen", "rotatable", "weight", "charge"))
+        # The registry's order, not a tuple written out here. A knob retired
+        # from the registry used to leave four of these behind.
+        return " + ".join(self.choices[k] for k in knobs_mod.ORDER
+                          if k in self.choices)
 
     def provenance(self):
         kinds = {k: knobs_mod.setting(k, v)["provenance"] for k, v in self.choices.items()}
@@ -145,10 +146,8 @@ class Variant:
                    - knobs_mod.strictness(k, baseline[k])
                 for k in self.choices}
 
-    def consider(self, mol, weight, rotatable, charge, scaffold, nitrogen_hits):
+    def consider(self, mol, weight, rotatable, scaffold, nitrogen_hits):
         """`scaffold` may be a callable, so only a survivor pays for it."""
-        if self.charge is not None and charge != self.charge:
-            return
         if weight >= self.mw_limit:
             return
         if rotatable > self.rot_limit:
@@ -177,7 +176,7 @@ class Variant:
 
 def enumerate_variants(baseline, only_looser=True):
     """Every combination of settings, optionally no stricter than the baseline."""
-    order = ("nitrogen", "rotatable", "weight", "charge")
+    order = knobs_mod.ORDER
     options = [[s["name"] for s in knobs_mod.settings_of(k)] for k in order]
     out = []
     for combination in itertools.product(*options):
@@ -219,7 +218,6 @@ def run(part_dir, variants, limit=None, exact_check=False):
         evaluated += 1
         weight = Descriptors.MolWt(mol)
         rotatable = rdMolDescriptors.CalcNumRotatableBonds(mol)
-        charge = Chem.GetFormalCharge(mol)
         # Computed once per molecule, reused by every variant. This is the
         # saving: K specifications, one RDKit pass.
         hits = {name: bool(body["test"](mol)) for name, body in nitrogen_settings.items()}
@@ -239,7 +237,7 @@ def run(part_dir, variants, limit=None, exact_check=False):
             return holder[0]
 
         for variant in variants:
-            variant.consider(mol, weight, rotatable, charge, scaffold_of, hits)
+            variant.consider(mol, weight, rotatable, scaffold_of, hits)
         if exact is not None and holder:
             exact.add(holder[0])
 
@@ -276,7 +274,7 @@ def main():
     parser.add_argument("--out", type=Path, default=WORK / "sweep.json")
     args = parser.parse_args()
 
-    baseline = dict(zip(("nitrogen", "rotatable", "weight", "charge"), args.baseline))
+    baseline = dict(zip(knobs_mod.ORDER, args.baseline))
     variants = enumerate_variants(baseline, only_looser=not args.all_combinations)
     print(f"baseline: {' + '.join(args.baseline)}")
     print(f"{len(variants)} specifications, one pass\n")

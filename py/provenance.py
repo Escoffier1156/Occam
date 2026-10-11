@@ -92,9 +92,51 @@ def identify(part_dir):
             "predicted_charge_at_ph_7_4": body["predicted_charge"],
             "means": body["name"],
             "rows": record.get("rows_written"),
+            # This used to end "the SMILES in every slice are written
+            # neutral", which was too strong: three of the four slices sampled
+            # hold molecules drawn with a formal charge. The measurement, with
+            # its tranche, sample size and seed, is in
+            # knobs.BLOCKED['library_charge_slice']['formal_charge_as_drawn'].
             "note": "this is the predicted protonation state, not the formal "
-                    "charge of the written structure. The SMILES in every slice "
-                    "are written neutral."}
+                    "charge of the written structure. Nearly every SMILES in "
+                    "every slice is written in neutral form, so the two "
+                    "quantities do not line up and only this one selects the "
+                    "charge state."}
+
+
+def alternative_slices(current):
+    """The slices that are actually on this disk, and what each is worth.
+
+    A refusal without a revision is half an answer. The contradiction check
+    used to end at "screen the -O and -P slices instead", which is advice: it
+    does not say whether those slices are here, how big they are, or what the
+    swap buys. Everything needed to say that is already recorded, so it is
+    said.
+    """
+    import knobs as knobs_mod
+
+    body = knobs_mod.BLOCKED["library_charge_slice"]
+    out = []
+    for letter, path in body["where"].items():
+        if Path(path) == Path(current):
+            continue
+        record = Path(path) / "parts.json"
+        if not record.exists():
+            continue
+        rows = json.loads(record.read_text()).get("rows_written")
+        out.append({
+            "slice": letter,
+            "means": body["slices"][letter],
+            "library": path,
+            "rows": rows,
+            "primary_amine_share": body["primary_amine_share"].get(letter),
+            "on_this_disk": True,
+        })
+    # Richest in the published rule's first condition first: that is the axis
+    # the contradiction was about.
+    out.sort(key=lambda row: -(row["primary_amine_share"] or 0))
+    return {"measured_on": body["primary_amine_share_measured_on"],
+            "slices": out}
 
 
 def contradiction(library_info, requirements):

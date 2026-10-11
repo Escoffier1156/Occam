@@ -53,6 +53,7 @@ import propose as propose_mod  # noqa: E402
 import provenance as provenance_mod  # noqa: E402
 import render as render_mod  # noqa: E402
 import screenable as screenable_mod  # noqa: E402
+import what_to_measure as what_to_measure_mod  # noqa: E402
 import smiles as smiles_mod  # noqa: E402
 import sweep as sweep_mod  # noqa: E402
 
@@ -69,13 +70,25 @@ VOCABULARY = {
         (r"\bionis?able\s+nitrogen", "basic_nitrogen"),
         (r"\bionizable\s+nitrogen", "basic_nitrogen"),
     ],
-    "charge": [
-        (r"\bzero\s+formal\s+charge", "neutral_only"),
-        (r"\bformal\s+charge\s+of\s+zero", "neutral_only"),
-        (r"\bneutral\b", "neutral_only"),
-        (r"\bany\s+charge", "any_charge"),
-    ],
 }
+
+# Charge used to be a knob, and reading it as one was reading the wrong
+# quantity: see knobs.RETIRED['charge']. A request about charge is now refused
+# rather than quietly redirected to a library slice, because silently turning
+# the word a requester used into a different field is the same move as
+# rounding "MW under 500" to 450.
+#
+# A charge word that the library phrase already consumed is NOT refused:
+# "neutral ZINC" names the -N slice, which is a legitimate way to say this, and
+# the library patterns match before these do.
+CHARGE_WORDS = [
+    r"\bzero\s+formal\s+charge\b",
+    r"\bformal\s+charge\s+of\s+zero\b",
+    r"\bany\s+charge\b",
+    r"\bneutral\s+only\b",
+    r"\b(?:cationic|anionic|zwitterionic)\b",
+    r"\bneutral\b",
+]
 
 # Numeric knobs: the phrase gives a number, and the number must match a
 # setting exactly. No rounding.
@@ -162,10 +175,19 @@ FACT_CLAIMS = [
 
 
 def _is_strict(text, span):
-    """Is there a strictness marker in the clause around this phrase?
+    """Is there a strictness marker in the clause around this phrase, and
+    where were the markers?
 
     The window stops at clause punctuation so a marker cannot leak across a
     comma into the next requirement.
+
+    The spans are returned so the caller can record them as read. They are
+    read here and nowhere else, so without that, "primary amine must be
+    strictly required" put its markers in the list of phrases nothing was read
+    from -- while the strictness they carried had in fact been applied. A
+    reader checking that list for a lost requirement would have found a
+    requirement that was not lost, which is the way to teach them to stop
+    checking it.
     """
     start, end = span
     left = text.rfind(",", max(0, start - STRICT_WINDOW), start)
@@ -173,7 +195,18 @@ def _is_strict(text, span):
     right = text.find(",", end, end + STRICT_WINDOW)
     right = right if right != -1 else min(len(text), end + STRICT_WINDOW)
     clause = text[left:right]
-    return any(re.search(marker, clause) for marker in STRICT_MARKERS)
+    spans = []
+    for marker in STRICT_MARKERS:
+        for found in re.finditer(marker, clause):
+            spans.append((left + found.start(), left + found.end()))
+    return bool(spans), spans
+
+
+def _overlaps(span, consumed):
+    """Was this span already read as part of something else?"""
+    start, end = span
+    return any(start < done_end and done_start < end
+               for done_start, done_end in consumed)
 
 
 def _unmatched_spans(text, consumed):
@@ -224,9 +257,11 @@ def parse(prose):
         for pattern, setting in entries:
             match = re.search(pattern, text)
             if match:
+                strict, markers = _is_strict(text, match.span())
                 spec["requirements"].append({"knob": knob, "setting": setting,
-                                             "strict": _is_strict(text, match.span())})
+                                             "strict": strict})
                 consumed.append(match.span())
+                consumed.extend(markers)
                 break
 
     for knob, body in NUMERIC.items():
@@ -237,9 +272,11 @@ def parse(prose):
             consumed.append(match.span())
             value = int(match.group(1))
             if value in body["limits"]:
+                strict, markers = _is_strict(text, match.span())
                 spec["requirements"].append({"knob": knob,
                                              "setting": body["limits"][value],
-                                             "strict": _is_strict(text, match.span())})
+                                             "strict": strict})
+                consumed.extend(markers)
             else:
                 notes["refused"].append(
                     {"phrase": match.group(0).strip(),
@@ -254,6 +291,27 @@ def parse(prose):
                                    "is a change to the registry, and has to "
                                    "arrive with the source that justifies it"})
             break
+
+    # A charge word outside everything already read. Inside a library phrase
+    # it was the slice being named, which is how charge is chosen now.
+    for pattern in CHARGE_WORDS:
+        match = re.search(pattern, text)
+        if not match or _overlaps(match.span(), consumed):
+            continue
+        consumed.append(match.span())
+        notes["refused"].append(
+            {"phrase": match.group(0).strip(),
+             "why": "charge is chosen by the library slice, not by a "
+                    "requirement. The retired knob read the formal charge of "
+                    "the structure as drawn, which is a different quantity "
+                    "from the protonation state ZINC predicts at pH 7.4",
+             "available": [f"{letter} ({means})" for letter, means
+                           in knobs_mod.BLOCKED["library_charge_slice"]
+                           ["slices"].items()],
+             "available_label": "registered slices",
+             "what_to_do": "name the slice as part of the library instead, "
+                           "for example \"cationic ZINC\" for -O"})
+        break
 
     seen = set()
     for pattern in TARGET_SHAPES:
@@ -316,7 +374,10 @@ def show(spec, notes, library_info=None):
                 print(line)
             available = render_mod.or_list(item["available"])
             unit = f" {item['unit']}" if item.get("unit") else ""
-            print(f"    registered: {available}{unit}")
+            label = item.get("available_label", "registered")
+            for line in render_mod.wrap(f"{label}: {available}{unit}",
+                                        indent=4, hanging=6):
+                print(line)
             for line in render_mod.wrap(item["what_to_do"], indent=4,
                                         hanging=6):
                 print(line)
@@ -341,15 +402,12 @@ def _survivor_smiles(library, choices, limit=None):
     caller of this tool -- only counted and measured over."""
     variant = sweep_mod.Variant(choices)
     nitrogen = {s["name"]: s for s in knobs_mod.settings_of("nitrogen")}
-    from rdkit import Chem
     from rdkit.Chem import Descriptors, rdMolDescriptors
 
     out = []
     for text in sweep_mod.iter_library(library, limit):
         mol = smiles_mod.parse(text)
         if mol is None:
-            continue
-        if variant.charge is not None and Chem.GetFormalCharge(mol) != variant.charge:
             continue
         if Descriptors.MolWt(mol) >= variant.mw_limit:
             continue
@@ -371,10 +429,23 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="read the request and stop")
     parser.add_argument("--out-dir", type=Path, default=WORK)
+    parser.add_argument("--no-measure", action="store_true",
+                        help="skip the count of what would have to be "
+                             "measured when the set is out of domain")
     parser.add_argument("--no-screenable", action="store_true",
                         help="skip the two verdicts about what a screen would "
                              "establish (they cost one scoring pass over a sample)")
     args = parser.parse_args()
+
+    # Made before anything is read, so an unwritable --out-dir is a sentence
+    # rather than a traceback thrown after the whole request has been echoed.
+    # Creating a directory the caller named is not a guess; it is the only
+    # reading that phrase has.
+    try:
+        args.out_dir.mkdir(parents=True, exist_ok=True)
+    except OSError as error:
+        return stop(f"cannot write to --out-dir {args.out_dir}: "
+                    f"{error.strerror or error}")
 
     if args.spec:
         spec = json.loads(args.spec.read_text())
@@ -433,6 +504,28 @@ def main():
     blocking = [c for c in target_checks if c["verdict"] == "not_answerable"]
     if library_check and (library_check["contradiction"] or {}).get("severity") \
             == "contradiction" and not args.yes:
+        # A refusal with no revision is half an answer (contraindication 77).
+        # The slices that are on this disk are named, with what the swap is
+        # worth, so the next command is in front of the reader.
+        alternatives = provenance_mod.alternative_slices(spec["library"])
+        if alternatives["slices"]:
+            print("\nwhat to screen instead (measured, on this disk):")
+            for row in alternatives["slices"]:
+                share = row["primary_amine_share"]
+                rows = (f"{row['rows']:,} compounds"
+                        if isinstance(row["rows"], int) else "count unrecorded")
+                enriched = (f", primary amines {share:.2%} of it"
+                            if share is not None else "")
+                for line in render_mod.wrap(
+                        f"{row['slice']} slice ({row['means']}): {rows}"
+                        f"{enriched}", indent=2, hanging=4):
+                    print(line)
+            for line in render_mod.wrap(
+                    f"shares measured on {alternatives['measured_on']}. The "
+                    f"requirements are unchanged by the swap: say the slice in "
+                    f"the library instead, for example \"cationic ZINC\" for "
+                    f"-O.", indent=2, hanging=4):
+                print(line)
         return stop("the library contradicts the published rule the request "
                     "is built on. Pass --yes to run anyway, having read why.")
     if blocking:
@@ -479,8 +572,13 @@ def main():
             print(line)
 
     if notes["refused"]:
-        return stop("a setting was named that does not exist. Nothing was "
-                    "rounded.")
+        # Two kinds of refusal arrive here: a value with no registered
+        # setting, and a word for a quantity that is not a requirement. The
+        # reason is worded for both, because guessing at either would be the
+        # same failure.
+        return stop("the request named something this cannot read as a "
+                    "requirement. Nothing was rounded and nothing was "
+                    "redirected to a different field.")
     if not spec.get("library"):
         return stop("no library named.")
     if not spec["deliverable"]:
@@ -570,21 +668,49 @@ def main():
     # What a screen of this specification would and would not establish. These
     # used to be gates inside the candidate pipeline, where they were reached
     # only after a list of molecules had been produced. They are verdicts.
+    measured_cost = False
     if not args.no_screenable and result.get("recommended"):
         chosen = result["recommended"]["choices"]
         print()
         survivors = _survivor_smiles(spec["library"], chosen, args.limit or None)
         if len(survivors) < 50:
-            print(f"この仕様で screening した場合: 生存 {len(survivors)} 件では "
-                  f"順位も適用範囲も判定できない")
+            for line in render_mod.wrap(
+                    f"what a screen of this specification would establish: "
+                    f"nothing yet. {len(survivors)} survivors is too few to "
+                    f"measure either an ordering or an applicability domain "
+                    f"on.", hanging=2):
+                print(line)
         else:
             body = screenable_mod.report(survivors)
             screenable_mod.show(body)
             (args.out_dir / "screenable.json").write_text(
                 json.dumps(body, indent=2) + "\n")
 
-    print(f"\n-> {args.out_dir}/request.json, sweep.json, proposal.json"
-          + ("" if args.no_screenable else ", screenable.json"))
+            # The applicability verdict says the model cannot speak about this
+            # set. On its own that is where the answer used to stop, and a
+            # verdict that names no next step is half an answer
+            # (contraindication 77). What closes it is a count: how many
+            # compounds would have to be measured for the set to stop being an
+            # extrapolation. It is only computed when the verdict needs it.
+            extrapolating = str(body["applicability"]["verdict"]).startswith(
+                "answerable_but_extrapolating")
+            if extrapolating and not args.no_measure:
+                print()
+                measured_cost = True
+                cost = what_to_measure_mod.report(
+                    survivors,
+                    dataset=render_mod.library_phrase(library_check["library"])
+                    if library_check else spec["library"])
+                what_to_measure_mod.show(cost)
+                (args.out_dir / "what_to_measure.json").write_text(
+                    json.dumps(cost, indent=2) + "\n")
+
+    written = ["request.json", "sweep.json", "proposal.json"]
+    if not args.no_screenable:
+        written.append("screenable.json")
+    if measured_cost:
+        written.append("what_to_measure.json")
+    print(f"\n-> {args.out_dir}/" + ", ".join(written))
     return 0
 
 
