@@ -541,9 +541,9 @@ def main():
         print(line)
     if result.get("as_asked"):
         a = result["as_asked"]
-        print(f"\nas asked: {a['survivors']:,} molecules pass, about "
-              f"{a['scaffolds_estimated']:,} distinct scaffolds "
-              f"({a['state']})")
+        print(f"\nas asked: {a['survivors']:,} molecules pass, "
+              f"{render_mod.scaffold_phrase(a)} - "
+              f"{render_mod.state(a['state'])}")
     if result.get("recommended"):
         r = result["recommended"]
         # When nothing was loosened, the recommendation IS the request. Saying
@@ -554,8 +554,8 @@ def main():
         for line in render_mod.wrap(render_mod.spec_phrase(r["choices"]),
                                     indent=2, hanging=4):
             print(line)
-        print(f"  {r['survivors']:,} molecules pass, about "
-              f"{r['scaffolds_estimated']:,} distinct scaffolds")
+        print(f"  {r['survivors']:,} molecules pass, "
+              f"{render_mod.scaffold_phrase(r)}")
         for knob, setting in r["loosened"].items():
             body = knobs_mod.setting(knob, setting)
             print(f"  loosened {render_mod.prop(knob)} to "

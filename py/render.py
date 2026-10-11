@@ -189,6 +189,37 @@ def spec_phrase(choices):
                      if knob in choices)
 
 
+# How a specification's feasibility state is said. These are field values
+# meant for sweep.json, and "uncertain" on its own does not say uncertain
+# about what.
+STATE = {
+    "feasible": "fills the request",
+    "infeasible": "cannot fill the request",
+    "uncertain": "too close to the sketch's error to call",
+}
+
+
+def state(value):
+    return STATE.get(value, str(value).replace("_", " "))
+
+
+def scaffold_phrase(row):
+    """The scaffold count, saying which of the two numbers this is.
+
+    sweep.py estimates distinct scaffolds from a fixed-width sketch, and
+    propose.py counts them exactly in a second pass whenever the sketch cannot
+    separate feasible from infeasible. Both numbers end up on the row. Showing
+    the estimate when the exact count exists understates what is known -- and
+    once an exact count has decided the verdict, "about" is wrong about the
+    verdict as well as the number.
+    """
+    exact = (row.get("exact") or {}).get("scaffolds_exact")
+    if exact is not None:
+        return f"{exact:,} distinct scaffolds, counted exactly"
+    return (f"about {row['scaffolds_estimated']:,} distinct scaffolds "
+            f"(sketch estimate)")
+
+
 def inert_lines(inert):
     """Knobs that changed no survivor count, said without their identifiers.
 

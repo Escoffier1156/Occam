@@ -120,6 +120,28 @@ class RecordShapesDoNotReachTheScreen(unittest.TestCase):
         self.assertEqual(render_mod.label_phrase("gram_positive_label"),
                          "gram positive")
 
+    def test_an_exact_scaffold_count_is_not_reported_as_an_estimate(self):
+        """propose.py counts exactly whenever the sketch cannot decide. Once
+        that count has set the verdict, "about 118" understates what is known
+        and misdescribes the verdict."""
+        row = {"scaffolds_estimated": 118, "survivors": 123,
+               "exact": {"scaffolds_exact": 119, "survivors": 123}}
+        phrase = render_mod.scaffold_phrase(row)
+        self.assertIn("119", phrase)
+        self.assertNotIn("118", phrase)
+        self.assertNotIn("about", phrase)
+
+    def test_a_sketch_estimate_says_it_is_one(self):
+        phrase = render_mod.scaffold_phrase({"scaffolds_estimated": 118})
+        self.assertIn("about 118", phrase)
+        self.assertIn("sketch", phrase)
+
+    def test_a_feasibility_state_is_a_statement(self):
+        self.assertEqual(render_mod.state("infeasible"),
+                         "cannot fill the request")
+        for value in ("feasible", "infeasible", "uncertain"):
+            self.assertNotIn("_", render_mod.state(value))
+
     def test_a_choice_of_values_reads_as_a_list(self):
         self.assertEqual(render_mod.or_list([5, 7, 9]), "5, 7 or 9")
         self.assertEqual(render_mod.or_list([450, 600]), "450 or 600")
