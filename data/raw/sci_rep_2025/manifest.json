@@ -1,0 +1,94 @@
+{
+  "dataset": "Small molecule retention by Gram-negative bacteria (LC/MS screen)",
+  "paper": {
+    "title": "Measurement and prediction of small molecule retention by Gram-negative bacteria based on a large-scale LC/MS screen",
+    "journal": "Scientific Reports",
+    "year": 2025,
+    "doi": "10.1038/s41598-025-10208-6",
+    "url": "https://www.nature.com/articles/s41598-025-10208-6"
+  },
+  "license": {
+    "name": "CC BY-NC-ND 4.0",
+    "full_name": "Creative Commons Attribution-NonCommercial-NoDerivatives 4.0 International",
+    "url": "http://creativecommons.org/licenses/by-nc-nd/4.0/",
+    "verified_from": "article page, Rights and permissions section",
+    "verified_utc": "2026-10-06",
+    "restrictions": [
+      "NonCommercial: commercial use is outside this licence.",
+      "NoDerivatives: the licence does not permit sharing adapted material derived from the article or parts of it.",
+      "Data availability statement names no separate repository, so the supplementary files fall under the article licence."
+    ],
+    "implications_for_this_repo": [
+      "data/raw/ is git-ignored so the files are never redistributed from here.",
+      "M3 reports numbers and method only; no model weights and no dataset are published.",
+      "Commercial use requires separate permission from the authors."
+    ]
+  },
+  "fetched_utc": "2026-10-06",
+  "source_base": "https://media.springernature.com/original/springer-static/esm/art%3A10.1038%2Fs41598-025-10208-6/MediaObjects/",
+  "files": [
+    {
+      "file": "MOESM2_TableS1.xlsx",
+      "original": "41598_2025_10208_MOESM2_ESM.xlsx",
+      "caption": "Supplementary Table S1: data for known antibiotics used to validate the screen",
+      "rows": 145,
+      "sha256": "6461fecf8f0b775ac62e8cc0d6dda2d99761a73df04dd0aca0a1a4076bc72f8f",
+      "present": false
+    },
+    {
+      "file": "MOESM3_TableS2.xlsx",
+      "original": "41598_2025_10208_MOESM3_ESM.xlsx",
+      "caption": "Supplementary Table S2: retention data of 421 non-antibiotic drugs",
+      "rows": 426,
+      "sha256": "8e34157b87a30968c4c6de522598cf2ac5f1651450ffad46fa9f9dd058cb8657",
+      "present": false
+    },
+    {
+      "file": "MOESM4_TableS3.xlsx",
+      "original": "41598_2025_10208_MOESM4_ESM.xlsx",
+      "caption": "Supplementary Table S3: retention data, SMILES for 6407 compounds, and 36 calculated molecular attributes of 6416 classified compounds used to train the prediction model",
+      "rows": 6422,
+      "data_rows": 6416,
+      "sha256": "6f42d8cdee34fbc559a25129a18f3c70bbddd0ac1b4bc2afcadb45de7202e27a",
+      "is_primary": true,
+      "present": false
+    }
+  ],
+  "table_s3_layout": {
+    "header_row_index": 5,
+    "first_data_row_index": 6,
+    "columns": {
+      "A": "Reference (compound id)",
+      "B": "Lysis 2350 (peak area, TolC mutant)",
+      "C": "Lysis 2122 (peak area, isogenic parent)",
+      "D": "% Ret 2350",
+      "E": "% Ret 2122",
+      "F": "Classification: Positive | Negative",
+      "G..AP": "36 calculated descriptors (OpenChemLib, RDKit, Chemaxon pKa)",
+      "AQ": "SMILES"
+    },
+    "strains": {
+      "2350": "E. coli TolC mutant",
+      "2122": "E. coli isogenic parent",
+      "source": "article body: 'the retention of 13,056 compounds in the TolC mutant E. coli 2350 and the isogenic parent 2122'"
+    },
+    "label_counts": {
+      "Positive": 2888,
+      "Negative": 3528
+    },
+    "smiles_present": 6407,
+    "smiles_missing": 9
+  },
+  "published_comparison_value": {
+    "model": "Gradient-boosted tree",
+    "metric": "ROC AUC",
+    "value": 0.87,
+    "note": "Reported in this paper for this dataset; not independently verified here."
+  },
+  "attribution_required": "Hoffmann et al. Sci Rep 2025, DOI 10.1038/s41598-025-10208-6, CC BY-NC-ND 4.0",
+  "status": "not_used",
+  "reason": "CC BY-NC-ND 4.0: the NonCommercial and NoDerivatives clauses fail the Open Definition. Replaced by the CHAMP dataset (CC BY 4.0), which also separates permeability from efflux across four strains.",
+  "replaced_by": "data/raw/champ/ (Zenodo 17434251, CC BY 4.0)",
+  "files_removed_utc": "2026-10-07",
+  "note": "The xlsx files were deleted; this manifest is kept as the record of the licence check so the investigation is not repeated."
+}

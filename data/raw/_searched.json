@@ -1,0 +1,166 @@
+{
+  "purpose": "Which data sources have been looked at, what was wanted from them, and what was found. Kept so the same ground is not searched twice, and so that 'not public' is never filed as 'does not exist'.",
+  "what_was_wanted": [
+    "permeability: compounds with a measured ability to enter Gram-negative bacteria",
+    "activity: compounds with measured Gram-negative antibacterial activity",
+    "both on the same molecules, which is what the order experiment needs and what is still missing"
+  ],
+  "provenance_note": "`checked_here` is true only where this session issued the request and read the response. Where it is false the finding came from elsewhere in the project and has not been independently confirmed; those entries are leads, not conclusions.",
+  "sources": [
+    {
+      "name": "CHAMP (Click-based accumulation in E. coli)",
+      "url": "https://zenodo.org/records/17434251",
+      "searched_utc": "2026-10-07",
+      "checked_here": true,
+      "wanted": "permeability labels with SMILES",
+      "result": "in use",
+      "detail": "1132 unique molecules, 4 strain conditions, CC BY 4.0 confirmed through the Zenodo API. Direct cytosolic measurement rather than a growth proxy.",
+      "limitation": "Every molecule carries an azide and the mean molecular weight is 183. Only 33.8% of the IMI evaluation pool falls inside the model's applicability domain, and that part holds 16.46% true hits against 27.55% overall.",
+      "revisit": "not needed"
+    },
+    {
+      "name": "GramNegAccum (eNTRy rules, Richter et al. Nature 2017)",
+      "url": "https://zenodo.org/records/19798859",
+      "searched_utc": "2026-10-06",
+      "checked_here": true,
+      "wanted": "permeability labels for external validation",
+      "result": "in use",
+      "detail": "151 molecules with continuous accumulation, CC BY 4.0 confirmed through the Zenodo API. SMILES use a non-standard bracket order ([N+H2], [N+@@H]) that RDKit rejects; 64 of 151 needed rewriting.",
+      "limitation": "Too small to train on: 54 weights over 101 rows gave a weight norm of 17.65 against CHAMP's 3.43.",
+      "revisit": "no"
+    },
+    {
+      "name": "IMI-COMBINE broad_spectrum_prediction",
+      "url": "https://github.com/IMI-COMBINE/broad_spectrum_prediction",
+      "searched_utc": "2026-10-07",
+      "checked_here": true,
+      "wanted": "Gram-negative activity labels, and a binding stand-in",
+      "result": "in use",
+      "detail": "74,202 rows, MIT licence confirmed from the repository's LICENSE and the GitHub API. 29,642 rows carry both Gram-positive and Gram-negative labels; 22,052 of those are free of SPARK rows.",
+      "limitation": "No permeability labels. Rows are ordered by study: the first 1,000 hold 2.27x the overall true-hit rate, which silently became the signal when ranking degenerated to file order.",
+      "revisit": "no"
+    },
+    {
+      "name": "ChEMBL, source 40 (CO-ADD Antimicrobial Screening)",
+      "url": "https://www.ebi.ac.uk/chembl/api/data/assay.json?src_id=40",
+      "searched_utc": "2026-10-06",
+      "checked_here": true,
+      "wanted": "the CO-ADD three-strain construct: wild type, lpxC, tolC",
+      "result": "found, but not what was wanted",
+      "detail": "All 35 assays retrieved. 17 strains, none of them E. coli MB4902 (lpxC) or MB5747 (tolC); E. coli appears only as wild-type ATCC 25922. One efflux-deficient strain exists: P. aeruginosa PAO397, a six-pump knockout, paired with wild-type ATCC 27853 across 18,406 compounds. CC BY-SA 3.0.",
+      "limitation": "Gives an efflux axis but no permeability axis: 'cannot get in' stays indistinguishable from 'does not bind'.",
+      "operational_note": "The REST API returns HTTP 500 on roughly five requests in six, at random rather than by rate limit, with successes arriving in bursts. Retry at a short fixed interval; growing the delay only misses the next good window.",
+      "revisit": "only if a permeability axis is added upstream"
+    },
+    {
+      "name": "Scientific Reports 2025, LC/MS retention screen",
+      "url": "https://www.nature.com/articles/s41598-025-10208-6",
+      "searched_utc": "2026-10-06",
+      "checked_here": true,
+      "wanted": "permeability labels with SMILES (6,416 compounds)",
+      "result": "rejected on licence",
+      "detail": "Supplementary Table S3 holds exactly what was wanted: SMILES, a binary label at 45% positive, and 36 precomputed descriptors. The article, and with it the supplementary files, is CC BY-NC-ND 4.0, read from the Rights and permissions section. The data availability statement names no separate repository.",
+      "limitation": "NonCommercial and NoDerivatives both fail the Open Definition.",
+      "revisit": "only with written permission from the corresponding author (Daniel Ritz, Idorsia Pharmaceuticals). A pharmaceutical company's paper reserving commercial use is unlikely to be relicensed on request.",
+      "record": "data/raw/sci_rep_2025/manifest.json, kept with the files removed"
+    },
+    {
+      "name": "CO-ADD, direct download",
+      "url": "https://db.co-add.org/",
+      "searched_utc": "2026-10-06",
+      "checked_here": false,
+      "wanted": "the full three-strain screen (reported as ~802,918 rows)",
+      "result": "not attempted",
+      "detail": "Reported within the project to distribute in bulk without registration while its copyright page forbids systematic download. Neither the files nor the terms were fetched in this session.",
+      "limitation": "The contradiction is unresolved, so it does not meet an open-licence requirement.",
+      "revisit": "yes, if the University of Queensland confirms terms in writing. The three-strain construct is the single most useful missing piece."
+    },
+    {
+      "name": "IMI TRANSLOCATION data warehouse",
+      "searched_utc": "2026-10-06",
+      "checked_here": false,
+      "wanted": "permeability and accumulation data",
+      "result": "reported absent",
+      "detail": "Reported within the project that the final report states the warehouse was never fully implemented because industry contributions were limited. Not independently confirmed here.",
+      "revisit": "no"
+    },
+    {
+      "name": "ENABLE",
+      "searched_utc": "2026-10-06",
+      "checked_here": false,
+      "wanted": "permeability or activity datasets",
+      "result": "reported absent",
+      "detail": "Reported as producing patents rather than public datasets. Not independently confirmed here.",
+      "revisit": "no"
+    },
+    {
+      "name": "GARDP",
+      "searched_utc": "2026-10-06",
+      "checked_here": false,
+      "wanted": "permeability or activity datasets",
+      "result": "reported not public",
+      "detail": "No public dataset found by the project's search. Whether data exists behind a request process was not established.",
+      "revisit": "yes, by asking. Absence from a web search is not absence of data.",
+      "status_is_not": "does not exist"
+    },
+    {
+      "name": "CARB-X",
+      "searched_utc": "2026-10-06",
+      "checked_here": false,
+      "wanted": "permeability or activity datasets",
+      "result": "reported not public",
+      "detail": "A funder rather than a data publisher; portfolio companies hold the data.",
+      "revisit": "yes, by asking. This is also a plausible recipient for the work, which makes the same conversation serve twice.",
+      "status_is_not": "does not exist"
+    },
+    {
+      "name": "NCATS",
+      "searched_utc": "2026-10-06",
+      "checked_here": false,
+      "wanted": "permeability datasets",
+      "result": "reported absent",
+      "detail": "Not independently confirmed here.",
+      "revisit": "low priority"
+    },
+    {
+      "name": "NIAID",
+      "searched_utc": "2026-10-06",
+      "checked_here": false,
+      "wanted": "permeability datasets",
+      "result": "reported not public",
+      "detail": "Not independently confirmed here.",
+      "revisit": "yes, by asking.",
+      "status_is_not": "does not exist"
+    },
+    {
+      "name": "Therapeutics Data Commons",
+      "url": "https://tdcommons.ai/",
+      "searched_utc": "2026-10-06",
+      "checked_here": false,
+      "wanted": "a Gram-negative permeability benchmark",
+      "result": "reported absent",
+      "detail": "Reported that single-pred and multi-pred were both checked and hold no Gram-negative permeability task. Not independently confirmed here.",
+      "revisit": "worth rechecking when TDC adds datasets; the absence is itself evidence the task is unserved."
+    },
+    {
+      "name": "ZINC22 (files.docking.org, tranche-level SMILES)",
+      "url": "https://files.docking.org/zinc22/",
+      "searched_utc": "2026-10-09",
+      "checked_here": true,
+      "wanted": "an unmeasured library in the MW 350-600 band, large enough that the fixed-memory engine is actually needed",
+      "result": "in use (open generations only)",
+      "detail": "Tranche-level HTTP GET works and supports range requests. Path form zinc22/zinc-22<gen>/H<heavy>/H<heavy>P<logP>/H<heavy>P<logP>-<charge>.<gen>.smi.gz. Tab separated, two columns (SMILES, ZINC id), NO header row -- the first line is already a molecule. Directory H number equals the heavy atom count exactly; MW is about 13.9 x heavy atoms. Charge suffix: N neutral, O +1, M -1, P +2 or more. Measured on zinc-22x H29P240-N (first 144,929 molecules): MW median 403.6, max 596.2, 100% inside 350-600, parse failure rate 0.000% with py/smiles.py. Volume is ample: zinc-22x H25-H29 neutral slices alone are several GB compressed.",
+      "limitation": "The MW ceiling of 425 Da seen in zinc-22g is specific to that generation, which the site documents as 'ZINC20 in stock'; it is not a property of ZINC22. The largest generations are not open: the site states the biggest is n, then x, then f, and zinc-22n returns 401, as do 2d/ and 2d-all/. Generations a, b and e have directories up to H49 but their high heavy-atom tranches are nearly empty, so molecules above about 600 Da are scarce in the open part.",
+      "licence": "ZINC's terms require written permission from John Irwin for redistribution of large portions, and explicitly permit screening and sharing screening results. No commercial restriction clause. Using it for screening without redistributing the library is therefore in scope; the raw tranches are kept out of the repository.",
+      "access_note": "The root page publishes credentials for the protected generations as a riddle. They were NOT used here. The page states the protection exists to preserve composition-of-matter patentability by keeping never-been-made molecules off the open internet, so using those generations could affect the patentability of any candidate published from them. That is a decision for the project owner, not a technical detail. The open generations supply the needed band and scale, so nothing depends on it.",
+      "revisit": "only if molecules above 600 Da are needed"
+    }
+  ],
+  "open_question": {
+    "question": "permeability and activity measured on the same molecules, under an open licence",
+    "status": "not found",
+    "closest": "IMI-COMBINE has activity for 22,052 molecules and CHAMP has permeability for 1,132, with no overlap between them.",
+    "why_it_matters": "Without it the order experiment has to stand in for permeability with a model trained elsewhere, and that model's applicability domain does not reach a general medicinal-chemistry library.",
+    "not_yet_decided": "when to stop looking, and whether to ask the organisations marked revisit: yes rather than keep searching public releases"
+  }
+}

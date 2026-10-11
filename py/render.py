@@ -1,0 +1,312 @@
+"""How a request and a verdict are said to a reader, as opposed to recorded.
+
+Everything here is presentation. The record written to data/work/ keeps the
+registry's own identifiers -- primary_amine, mw_under_450, rotatable_le_5 --
+because the point of the record is that it can be read years later with no
+interpretation. The terminal is the opposite case: it is read once, by a
+chemist, who should not have to know that a threshold is spelled
+`mw_under_450` to see that it says 450 daltons.
+
+So the identifiers never reach the screen and never leave the JSON.
+
+WHY THE PHRASES LIVE HERE AND NOT IN THE REGISTRY
+
+A setting in py/knobs.py carries its test, its provenance and its source. Those
+decide what a screen does. A display phrase decides nothing, and putting it in
+the registry would invite editing the registry for cosmetic reasons, which is
+the one file where an accidental edit changes a result.
+
+The cost of the separation is that the two tables can drift: a setting added to
+the registry with no phrase here would print as a bare identifier again.
+tests/test_render.py fails in that case, which is the whole reason it exists.
+A missing phrase also degrades visibly rather than silently -- the identifier
+is printed as-is, never guessed at from its spelling.
+"""
+
+import re
+import textwrap
+
+# Prose is wrapped rather than left to the terminal, because the lines that
+# matter most here are the longest: a caution runs to three lines and a single
+# unwrapped paragraph is the form a reader skips.
+WIDTH = 78
+
+
+def wrap(text, indent=0, hanging=None):
+    """`text` as lines no wider than WIDTH, indented, continuation deeper."""
+    first = " " * indent
+    rest = " " * (indent if hanging is None else hanging)
+    return textwrap.wrap(text, width=WIDTH, initial_indent=first,
+                         subsequent_indent=rest) or [first.rstrip()]
+
+# The property a knob constrains, named as a chemist would name it rather than
+# as the code names it. "rotatable" and "weight" are column names; "flexibility"
+# and "molecular weight" are properties.
+PROPERTY = {
+    "nitrogen": "ionisable nitrogen",
+    "rotatable": "flexibility",
+    "weight": "molecular weight",
+    "charge": "formal charge as drawn",
+}
+
+# What each setting asks for, as a phrase that can be read aloud. The numbers
+# here must match the registry's own limits; tests/test_render.py checks every
+# number that appears in a phrase against the limit it claims to state.
+READS = {
+    ("nitrogen", "primary_amine"): "an unhindered primary amine",
+    ("nitrogen", "primary_or_secondary_amine"):
+        "a primary or secondary amine on carbon",
+    ("nitrogen", "basic_nitrogen"): "any nitrogen basic near pH 7.4",
+    ("rotatable", "rotatable_le_5"): "at most 5 rotatable bonds",
+    ("rotatable", "rotatable_le_7"): "at most 7 rotatable bonds",
+    ("rotatable", "rotatable_le_9"): "at most 9 rotatable bonds",
+    ("weight", "mw_under_450"): "under 450 Da",
+    ("weight", "mw_under_600"): "under 600 Da",
+    ("weight", "mw_unbounded"): "no upper bound on weight",
+    ("charge", "neutral_only"): "formal charge zero",
+    ("charge", "any_charge"): "any formal charge",
+}
+
+# One line naming where the setting comes from. The registry's `source` is the
+# full statement and is printed by --provenance; this is the version that fits
+# beside the phrase without pushing it off the line.
+CITE = {
+    ("nitrogen", "primary_amine"):
+        "Richter 2017, first eNTRy condition, best case",
+    ("nitrogen", "primary_or_secondary_amine"):
+        "Richter 2017, first eNTRy condition",
+    ("nitrogen", "basic_nitrogen"):
+        "Richter 2017, first eNTRy condition, broadest reading",
+    ("rotatable", "rotatable_le_5"): "Richter 2017, third eNTRy condition",
+    ("rotatable", "rotatable_le_7"): "the published limit of 5, moved",
+    ("rotatable", "rotatable_le_9"): "the published limit of 5, moved",
+    ("weight", "mw_under_450"): "chosen by this study; no published bound",
+    ("weight", "mw_under_600"):
+        "O'Shea & Moser 2008, quoted verbatim in Richter 2017",
+    ("weight", "mw_unbounded"): "Richter 2017 sets no bound on size",
+    ("charge", "neutral_only"): "chosen by the request",
+    ("charge", "any_charge"): "the request's restriction removed",
+}
+
+# The one sentence a reader has to see even if they read nothing else about the
+# knob. Both of these record a measurement that contradicts the obvious reading
+# of the knob's name, so they are printed every time the knob is used, not
+# filed behind a flag. The registry holds the full text.
+CAUTION = {
+    "weight": "not a permeability bound. Richter 2017 reports no correlation "
+              "between accumulation and molecular weight; measured here, "
+              "450 -> 600 changes survivors 1.1x against 2.8x for rotatable "
+              "bonds. Read it as a size bound.",
+    "charge": "nearly a no-op on ZINC22, where every slice is written in "
+              "neutral form. The library slice is what chooses the charge "
+              "state, not this.",
+}
+
+# Function words, plus the nouns that name the request's own machinery. A
+# fragment built only from these carries no requirement, so listing it under
+# "nothing was read from" only teaches the reader to skim that list -- which is
+# the one list that has to be read. Anything outside this set is content and is
+# always shown in full.
+FUNCTION_WORDS = frozenset("""
+a an and are as at be been being but by do does for from had has have how if in
+into is it its of on or over so than that the their then there these this those
+to under up upon was were what when where which while with within without
+library libraries dataset data set collection compounds molecules molecule
+items entries rows please want need give me us i we you
+""".split())
+
+_WORD = re.compile(r"[a-z0-9]+")
+_TRANCHE = re.compile(r"^(?:x_)?(?P<tranche>.+?)-[NOMP](?:\.[a-z])?\.smi\.gz$")
+
+
+def reads(knob, setting):
+    """The phrase for a setting, or the identifier if none is written here.
+
+    Falling back to the identifier is deliberate. A guess assembled from the
+    spelling of the name would read as fluent English and could be wrong about
+    a number, which is worse than printing something the reader can see is
+    machine output and report.
+    """
+    return READS.get((knob, setting), setting)
+
+
+def prop(knob):
+    return PROPERTY.get(knob, knob)
+
+
+def strictness(strict):
+    return "not negotiable" if strict else "may be relaxed"
+
+
+def requirement_lines(knob, setting, strict, width=20):
+    """What was asked, where it comes from, and any caution on the knob."""
+    # Strictness sits on the first line, with the phrase it governs. Wrapped
+    # into the end of the citation it was the last thing on the last line,
+    # which is where it was least likely to be read -- and it decides whether
+    # the proposer may trade the requirement away.
+    left = 2 + width + 1
+    out = [f"  {prop(knob):{width}} {reads(knob, setting)}  "
+           f"({strictness(strict)})"]
+    cite = CITE.get((knob, setting))
+    if cite:
+        out += wrap(cite, indent=left)
+    if knob in CAUTION:
+        out += wrap(f"note: {CAUTION[knob]}", indent=left, hanging=left + 6)
+    return out
+
+
+# The verdicts screenable.py returns, as statements. A verdict is the one word
+# a reader carries away from a run, and `not_measurable` is not a word: it is a
+# field value that happens to be legible.
+VERDICT = {
+    "pass": "can be done",
+    "pass for the range, weak per molecule":
+        "can be done across the range, but weakly for any single molecule",
+    "answerable": "can be answered",
+    "answerable_but_extrapolating":
+        "can be answered only by extrapolating past the training set",
+    "not_answerable": "cannot be answered",
+    "not_measurable": "could not be measured",
+}
+
+
+def verdict(value):
+    """A verdict as a statement; unknown values degrade to readable text."""
+    return VERDICT.get(value, str(value).replace("_", " "))
+
+
+KNOB_ORDER = ("nitrogen", "rotatable", "weight", "charge")
+
+
+def spec_phrase(choices):
+    """A whole specification as one readable clause.
+
+    sweep.py names a specification by joining its settings' identifiers, which
+    is the right name for a key in sweep.json and the wrong one for a line a
+    reader has to compare against another line.
+    """
+    return "; ".join(reads(knob, choices[knob]) for knob in KNOB_ORDER
+                     if knob in choices)
+
+
+def inert_lines(inert):
+    """Knobs that changed no survivor count, said without their identifiers.
+
+    The sentence is built from the comparison counts rather than reusing the
+    one provenance.py writes, because that one embeds the knob's key: "every
+    pair differing only in rotatable" is not a sentence about chemistry.
+    """
+    out = []
+    for knob in inert:
+        name = prop(knob["knob"])
+        if knob["all_identical"]:
+            out += wrap(f"{name} filtered nothing on this library: every pair "
+                        f"of specifications differing only in it gave the same "
+                        f"survivor count, in all {knob['comparisons']} "
+                        f"comparisons. Do not report it as a constraint that "
+                        f"was applied.", indent=2, hanging=4)
+        else:
+            out += wrap(f"{name} changed nothing in {knob['identical_in']} of "
+                        f"{knob['comparisons']} comparisons.",
+                        indent=2, hanging=4)
+    return out
+
+
+def library_phrase(info):
+    """The library named as a chemist would name it, not as a path.
+
+    `info` is provenance.identify()'s record. When it could not read the slice
+    the phrase says so and keeps the path, because an unidentified library is
+    the condition the provenance check exists to surface.
+    """
+    if not info.get("known"):
+        return f"{info.get('library', '(not named)')} - slice not identified"
+    rows = info.get("rows")
+    count = f"{rows:,} compounds" if isinstance(rows, int) else "count unrecorded"
+    source = info.get("source") or ""
+    match = _TRANCHE.match(source)
+    tranche = f"tranche {match.group('tranche')}, " if match else ""
+    return (f"ZINC22 {tranche}-{info['slice']} slice "
+            f"({info['means']}), {count}")
+
+
+def control_verdict(value):
+    """A control's verdict, which is a statement about the control itself.
+
+    "the control can be done" is not what a passing control says. It says the
+    measurement is capable of clearing the threshold, so the failure it rules
+    out is a broken measurement rather than a library that is genuinely out of
+    domain.
+    """
+    return {"pass": "passes",
+            "not_measurable": "could not be measured"}.get(
+                value, verdict(value))
+
+
+def or_list(values):
+    """"5, 7 or 9". A Python list literal on screen is the record's shape."""
+    items = [str(v) for v in values]
+    if len(items) <= 1:
+        return "".join(items)
+    return f"{', '.join(items[:-1])} or {items[-1]}"
+
+
+def counts_phrase(labels):
+    """A label tally as words, not as the dict it is stored as.
+
+    `{'positive': 8600, 'negative': 13451}` printed straight out of the record
+    is the clearest case of the record's shape reaching the screen.
+    """
+    if not isinstance(labels, dict):
+        return str(labels)
+    return ", ".join(f"{value:,} {str(key).replace('_', ' ')}"
+                     for key, value in labels.items())
+
+
+def label_phrase(key):
+    """A dataset's label column named as the thing it records.
+
+    `gram_positive_label` is a column name. "gram positive" is what it says.
+    """
+    return re.sub(r"_label$", "", key).replace("_", " ")
+
+
+def has_content_word(fragment):
+    words = _WORD.findall(fragment.lower())
+    return any(word not in FUNCTION_WORDS for word in words)
+
+
+def partition_unread(pieces):
+    """Split unread fragments into the ones that could have been requirements
+    and the ones that are grammar.
+
+    The suppressed ones are counted, never dropped in silence: a reader who
+    distrusts the split has to be able to see that it happened.
+    """
+    content = [p for p in pieces if has_content_word(p)]
+    return content, len(pieces) - len(content)
+
+
+def unread_lines(pieces, show=8):
+    content, suppressed = partition_unread(pieces)
+    if not content and not suppressed:
+        return []
+    if not content:
+        # Nothing was lost, so nothing is asked of the reader. Saying it
+        # anyway, every run, is how a warning stops being read.
+        return [""] + wrap(f"every part of the request was read. {suppressed} "
+                           f"leftover fragment(s) were articles, prepositions "
+                           f"or the words for the data itself.")
+    out = ["\nnothing in the request was read as a requirement from:"]
+    for piece in content[:show]:
+        out.append(f"  \"{piece[:90]}\"")
+    if len(content) > show:
+        out.append(f"  ... and {len(content) - show} more")
+    if suppressed:
+        out += wrap(f"({suppressed} further fragment(s) suppressed as "
+                    f"articles, prepositions or the words for the data "
+                    f"itself)", indent=2)
+    out += wrap("If any of that was a requirement, it has been lost: this "
+                "reads a closed vocabulary and does not guess. Say it in the "
+                "wording shown above.", indent=2)
+    return out

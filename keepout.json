@@ -1,0 +1,113 @@
+{
+  "version": "2.0.0",
+  "locks": {
+    "engine/src/bulk.rs#lock_0": {
+      "file_path": "engine/src/bulk.rs",
+      "lock_index": 0,
+      "mode": "ast",
+      "strict_hash": "b9f1c68e67b799d02883d001681cfdf81da2eeeffce2d9950280ceee05fa2ed8",
+      "ast_hash": "27ef575310c5b04dda8ab734b192a85cb8ce53d95284e43c5c0f2c7837db2116",
+      "original_code": "    // Invariant 3: one bulk exists at a time. The claim is not that the loop\n    // happens to drop it, but that a second one cannot be built while the\n    // first lives. compare_exchange, not fetch_add: the check and the claim\n    // have to be one step.\n    /// Registers a new live bulk. Panics if another one is still alive.\n    fn new(rows: Vec<Sample>) -> Self {\n        let claimed = LIVE_BULKS.compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst);\n        assert!(claimed.is_ok(), \"two bulks alive at once\");\n        Bulk { rows }\n    }",
+      "cached_counterexamples": [],
+      "target_symbol": "one_bulk_alive",
+      "start_line": 41,
+      "end_line": 52
+    },
+    "engine/src/bulk.rs#lock_1": {
+      "file_path": "engine/src/bulk.rs",
+      "lock_index": 1,
+      "mode": "ast",
+      "strict_hash": "add98c409a21f5db1f56aa061557d8df746ec38fd8f7ec0cfd2076ea8a8b249f",
+      "ast_hash": "305aa6a29a0f19f2c0761fcf626c8027fb0db3b5c18234c0d34f51b219931f34",
+      "original_code": "// Invariant 2: a parquet footer grows with its row group count, so a file\n// holding many of them makes memory depend on the data volume. This refusal\n// is what keeps that out; it fired for real during M3.\nfn open_part(path: &Path) -> Result<RowIter<'static>, ParquetError> {\n    let file = File::open(path).map_err(|e| ParquetError::External(Box::new(e)))?;\n    let reader = SerializedFileReader::new(file)?;\n    let groups = reader.num_row_groups();\n    if groups > 1 {\n        return Err(ParquetError::General(format!(\n            \"{}: {groups} row groups; at most 1 per file is allowed because the footer \\\n             grows with the row group count. Split it with py/gen_scale.py.\",\n            path.display()\n        )));\n    }\n    Ok(reader.into_iter())\n}",
+      "cached_counterexamples": [],
+      "target_symbol": "one_row_group_per_file",
+      "start_line": 200,
+      "end_line": 217
+    },
+    "engine/src/carry.rs#lock_0": {
+      "file_path": "engine/src/carry.rs",
+      "lock_index": 0,
+      "mode": "ast",
+      "strict_hash": "ac34759445e48b292b25f15ecf4450edf96fb1cea7b4f2449298673f58d3e2e4",
+      "ast_hash": "fb98acdde2a016831b23d3a6a311eea0bfb9822aa7f45f602d56357ec044b167",
+      "original_code": "// Invariant 1: R is a fixed length, independent of bulk size and data volume.\n// `Copy` is what enforces it -- it rules out Vec, HashMap, Box and String, so\n// every field is inline and size_of::<Carry>() is a compile-time constant.\n// Adding a heap-owning field would not fail to compile here; it would fail the\n// derive, and the const assert below would stop matching. Do not weaken either.\n#[derive(Clone, Copy)]\npub struct Carry {\n    pub top: [Candidate; K],\n    pub bulks_seen: u64,\n    /// Logistic regression weights over the expanded row, learned in pass 1.\n    pub weights: [f32; W],\n    pub bias: f32,\n    /// Standardization constants from py/descriptors.py, not learned here.\n    pub mean: [f32; F],\n    pub inv_std: [f32; F],\n    /// Training rows absorbed so far; drives the learning rate schedule.\n    pub seen: u64,\n    /// Scores of held-out rows, binned by class: [negative, positive].\n    /// This is what makes a global AUC come out of a fixed-size carry.\n    pub hist: [[u32; BINS]; 2],\n    /// Same, but filled during pass 1 from each row's score *before* it is\n    /// learned from. Reported as a secondary number, not used for the verdict.\n    pub prequential: [[u32; BINS]; 2],\n}\n\n/// R in M ~ D / N + R, in bytes.\npub const CARRY_BYTES: usize = size_of::<Carry>();\n\n// Breaks the build if Carry gains anything beyond its fixed fields.\n// Rust may reorder fields, so the bound is \"no padding beyond alignment\"\n// rather than an exact sum: what matters is that the size is a constant and\n// that nothing heap-owning can appear (Copy already rules that out).\nconst PAYLOAD_BYTES: usize = K * size_of::<Candidate>()\n    + 2 * size_of::<u64>()\n    + (W + 2 * F + 1) * size_of::<f32>()\n    + 4 * BINS * size_of::<u32>();\nconst _: () = assert!(CARRY_BYTES >= PAYLOAD_BYTES - 8 && CARRY_BYTES <= PAYLOAD_BYTES + 8);",
+      "cached_counterexamples": [],
+      "target_symbol": "carry_is_fixed_size",
+      "start_line": 84,
+      "end_line": 122
+    },
+    "engine/src/main.rs#lock_0": {
+      "file_path": "engine/src/main.rs",
+      "lock_index": 0,
+      "mode": "ast",
+      "strict_hash": "f54167e77f0264e25b2ade41a5c19b1d0fe4733a8b1403a97bc61d95d1940177",
+      "ast_hash": "e7900b901755f782d8c7b9d2a8bb1cc189a110cc04e397d05aaa1ee9028cc8ac",
+      "original_code": "    // The whole of the mechanism. One bulk is read, one operator absorbs it,\n    // both die at the end of the iteration and only the carry goes forward.\n    // No lookahead, no buffering, nothing accumulated across iterations.\n    for bulk in &mut bulks {\n        let bulk = bulk?;\n        let mut op = DomainOperator::new(pass, args.learning_rate);\n        carry = op.absorb(&bulk, carry);\n        // op and bulk are dropped here, before the next iteration\n    }",
+      "cached_counterexamples": [],
+      "target_symbol": "the_loop",
+      "start_line": 120,
+      "end_line": 130
+    },
+    "engine/src/process.rs#lock_0": {
+      "file_path": "engine/src/process.rs",
+      "lock_index": 0,
+      "mode": "ast",
+      "strict_hash": "b8a8d4fb41ccd1e9dfa334912d54086abb6847654e0cbc3f32dbea49727021cd",
+      "ast_hash": "d64cc1a11fb84b4c1c340dc3933d272c0f2840b4f01394118f76f8c19fdd7477",
+      "original_code": "    // Invariant 3, the operator half. Rebinding `op` rather than scoping it\n    // builds the next operator before dropping the previous one, and this\n    // assert is what catches that.\n    /// Panics if another operator is still alive.\n    pub fn new(pass: Pass, learning_rate: f32) -> Self {\n        let claimed = LIVE_OPERATORS.compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst);\n        assert!(claimed.is_ok(), \"two operators alive at once\");\n        DomainOperator { pass, learning_rate }\n    }",
+      "cached_counterexamples": [],
+      "target_symbol": "one_operator_alive",
+      "start_line": 46,
+      "end_line": 56
+    },
+    "py/candidates.py#lock_0": {
+      "file_path": "py/candidates.py",
+      "lock_index": 0,
+      "mode": "ast",
+      "strict_hash": "4aed22cebadb8e9d19911851f273ea6f37025200deac09567ce8dabbbcbdb350",
+      "ast_hash": "af463eec77e7b828bd14c9500f130c349a63d0ad236520afd882e6e3efd4242d",
+      "original_code": "# Every \"take the first of the tied ones\" is a way for input order to decide\n# the output. ECFP ignores stereochemistry, so stereoisomers score identically,\n# and deduplication silently became selection by file position until this was\n# added. The shuffle control went from 80% back to 100%.\ndef rank_key(i, scores, props):\n    \"\"\"Sort key: score first, then a property of the molecule itself.\n\n    Scores alone are not enough to order the list. ECFP does not encode\n    stereochemistry, so stereoisomers receive identical scores, and any\n    \"take the first\" step over them -- choosing a representative, cutting the\n    top N -- would be settled by the order the rows happened to arrive in.\n    That order is not neutral here: the library's leading rows carry 2.27x the\n    base hit rate. Breaking ties on the InChIKey removes the question.\n    \"\"\"\n    return (-scores[i], props[i][\"inchikey\"] or \"\", i)",
+      "cached_counterexamples": [],
+      "target_symbol": "deterministic_tiebreak",
+      "start_line": 151,
+      "end_line": 167
+    },
+    "py/descriptors.py#lock_0": {
+      "file_path": "py/descriptors.py",
+      "lock_index": 0,
+      "mode": "ast",
+      "strict_hash": "e1cdc45310073b2e378a4bc1e1cf416fe48ee8051b269a3674c5642303e2115c",
+      "ast_hash": "8c981221aa26359c56699499fe81925dae9f206caa234e8109ed482126e38786",
+      "original_code": "    # Stops rather than continues when most of the input will not parse. This\n    # fired on GramNegAccum at 45.5% and the cause was a notation dialect, not\n    # broken chemistry; without it the dataset would have silently shrunk.\n    failures = dropped[\"smiles_unparseable\"] + dropped[\"smiles_missing\"]\n    total = rows + sum(v for k, v in dropped.items() if k != \"out_of_scope\")\n    if total and failures / total > MAX_PARSE_FAILURE_RATE:\n        sys.exit(\n            f\"{src}: {failures}/{total} SMILES unparseable ({failures/total:.2%}), \"\n            f\"above the {MAX_PARSE_FAILURE_RATE:.0%} limit. The descriptor pipeline is \"\n            f\"more likely at fault than the data; stopping instead of continuing.\"\n        )",
+      "cached_counterexamples": [],
+      "target_symbol": "parse_failure_limit",
+      "start_line": 180,
+      "end_line": 192
+    },
+    "py/m3_order.py#lock_0": {
+      "file_path": "py/m3_order.py",
+      "lock_index": 0,
+      "mode": "ast",
+      "strict_hash": "2436f211b817568a8cb9043da16d6e1117c5f2195e75e7e4fd428cd96f8a856b",
+      "ast_hash": "8ee5917deca8cf0c06b20434c8c0fa55c532ca281c0d5c3ef2870736d174ab22",
+      "original_code": "# This caught a real failure: 78% of a library shared one score because the\n# logistic function had saturated in f32, the sort fell back on file order,\n# and the file order was itself enriched for hits. The result looked like a\n# permeability effect and was reported as one.\ndef assert_ranking_is_usable(scores, tag, max_tie=MAX_TIE_SHARE,\n                             min_distinct=MIN_DISTINCT_SHARE):\n    \"\"\"Refuses a score array that cannot order its rows; returns the diagnostics.\"\"\"\n    counts = Counter(scores)\n    value, n = counts.most_common(1)[0]\n    tie_share = n / len(scores)\n    distinct_share = len(counts) / len(scores)\n    if tie_share > max_tie:\n        raise RuntimeError(\n            f\"{tag}: {n}/{len(scores)} rows ({tie_share:.1%}) share the score \"\n            f\"{value!r}, above the {max_tie:.0%} limit. Ranking them would order \"\n            f\"by file position, not by the model. Rank on the logit, and check \"\n            f\"how far this data sits from what the model was fitted to.\"\n        )\n    if distinct_share < min_distinct:\n        raise RuntimeError(\n            f\"{tag}: only {len(counts)}/{len(scores)} distinct scores \"\n            f\"({distinct_share:.1%}), below the {min_distinct:.0%} limit. Most \"\n            f\"comparisons would be decided by file position rather than by score.\"\n        )\n    return {\"tie_share\": tie_share, \"distinct_share\": distinct_share}",
+      "cached_counterexamples": [],
+      "target_symbol": "ranking_guard",
+      "start_line": 159,
+      "end_line": 185
+    },
+    "py/smiles.py#lock_0": {
+      "file_path": "py/smiles.py",
+      "lock_index": 0,
+      "mode": "ast",
+      "strict_hash": "a27b6922ed264da4824db91106779794662275828f795e71c9db87a804926ea4",
+      "ast_hash": "b639ce3485cfffc922633536fa46d921b33a06aab646aca834e3e51edca70f57",
+      "original_code": "        # UNLOCK_REASON (2026-10-08): AssignStereochemistry added alongside\n        # RemoveHs. Both lines restore a step that Chem.MolFromSmiles performs\n        # for itself and the sanitize=False path above skips. Neither is\n        # optional and neither belongs to the repair.\n        #\n        # RemoveHs: without it the graph keeps [H] atoms and every descriptor\n        # shifts on any input that writes one. This looked like the valence\n        # repair changing CHAMP, and CHAMP has no atom the repair touches.\n        #\n        # AssignStereochemistry: without it ring double-bond stereo is never\n        # perceived. MolToSmiles writes the bond directions back either way, so\n        # the canonical SMILES is identical and a SMILES-level comparison sees\n        # nothing -- but InChI reads the flags, and py/candidates.py breaks ties\n        # on the InChIKey. One IMI molecule with a ring `/C=C\\` picked a\n        # different stereoisomer as its representative because of this.\n        mol = Chem.RemoveHs(mol)\n        Chem.AssignStereochemistry(mol, cleanIt=True, force=True)",
+      "cached_counterexamples": [],
+      "target_symbol": "smiles_matches_rdkit_default",
+      "start_line": 99,
+      "end_line": 117
+    }
+  }
+}

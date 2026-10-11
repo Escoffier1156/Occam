@@ -1,0 +1,33 @@
+# Raw inputs are third-party data under their own licences. Some forbid
+# redistribution (Sci Rep 2025 supplementary data is CC BY-NC-ND 4.0, whose
+# NoDerivatives clause covers sharing parts of it), so nothing under data/raw/
+# is committed. Each subdirectory carries a manifest.json recording where its
+# files came from, under what licence, and their checksums; those manifests are
+# the reproducible part and are tracked.
+# `data/raw/*` alone would not do: re-including a subdirectory re-includes
+# everything in it, since the exclusion only matched the directory's parent.
+data/raw/**
+!data/raw/**/
+!data/raw/**/manifest.json
+!data/raw/**/SHA256SUMS
+# The record of which sources were searched: no third-party data, so it is
+# tracked. A source that is "not public" is not the same as one that does not
+# exist, and that distinction is only useful if it survives in the repository.
+!data/raw/_searched.json
+
+# Generated; safe to delete at any time.
+data/work/
+
+# Build output and test caches.
+# The trailing glob matters: there are three build directories, not one.
+# `engine/target/` alone left target-fp/ and target-lin/ tracked, which put
+# 633 of the 669 files in the first commit's index.
+engine/target*/
+.hypothesis/
+__pycache__/
+*.pyc
+
+# Experiment outputs live under data/work/, which is already ignored. The
+# predictions of py/inclusion.py are the exception worth keeping: they are the
+# record that the rule was stated before the transfers were run, so a copy is
+# tracked as docs/inclusion_predictions.json.

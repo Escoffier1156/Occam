@@ -1,0 +1,163 @@
+[
+  {
+    "pair": "random_halves",
+    "how": "control: two random disjoint halves",
+    "a": {
+      "name": "A",
+      "n": 3902,
+      "path": "/home/shogo/occam/data/work/inclusion/random_halves_a/features.parquet"
+    },
+    "b": {
+      "name": "B",
+      "n": 3903,
+      "path": "/home/shogo/occam/data/work/inclusion/random_halves_b/features.parquet"
+    },
+    "coverage": {
+      "a_to_b": 0.9172431462977197,
+      "b_to_a": 0.9023577652485905
+    },
+    "factor": 1.0164960968059364,
+    "lower_direction": "b_to_a",
+    "predicts_verdicts": false,
+    "coverage_forced_by_construction": false,
+    "neighbour_percentile": 95
+  },
+  {
+    "pair": "scaffold_frequency",
+    "how": "A: scaffolds seen 5+ times; B: scaffolds seen once",
+    "a": {
+      "name": "common",
+      "n": 4926,
+      "path": "/home/shogo/occam/data/work/inclusion/scaffold_frequency_a/features.parquet"
+    },
+    "b": {
+      "name": "rare",
+      "n": 1133,
+      "path": "/home/shogo/occam/data/work/inclusion/scaffold_frequency_b/features.parquet"
+    },
+    "coverage": {
+      "a_to_b": 0.3442188879082083,
+      "b_to_a": 0.829882257409663
+    },
+    "factor": 2.4109143529362775,
+    "lower_direction": "a_to_b",
+    "predicts_verdicts": false,
+    "coverage_forced_by_construction": false,
+    "neighbour_percentile": 95
+  },
+  {
+    "pair": "halogen",
+    "how": "A: no halogen; B: one or more",
+    "a": {
+      "name": "none",
+      "n": 5501,
+      "path": "/home/shogo/occam/data/work/inclusion/halogen_a/features.parquet"
+    },
+    "b": {
+      "name": "halogenated",
+      "n": 2304,
+      "path": "/home/shogo/occam/data/work/inclusion/halogen_b/features.parquet"
+    },
+    "coverage": {
+      "a_to_b": 0.8602430555555556,
+      "b_to_a": 0.5673513906562443
+    },
+    "factor": 1.5162438476805868,
+    "lower_direction": "b_to_a",
+    "predicts_verdicts": false,
+    "coverage_forced_by_construction": false,
+    "neighbour_percentile": 95
+  },
+  {
+    "pair": "stereocentres",
+    "how": "A: no stereocentre; B: two or more",
+    "a": {
+      "name": "flat",
+      "n": 1705,
+      "path": "/home/shogo/occam/data/work/inclusion/stereocentres_a/features.parquet"
+    },
+    "b": {
+      "name": "stereo-rich",
+      "n": 4400,
+      "path": "/home/shogo/occam/data/work/inclusion/stereocentres_b/features.parquet"
+    },
+    "coverage": {
+      "a_to_b": 0.46136363636363636,
+      "b_to_a": 0.2709677419354839
+    },
+    "factor": 1.702651515151515,
+    "lower_direction": "b_to_a",
+    "predicts_verdicts": false,
+    "coverage_forced_by_construction": false,
+    "neighbour_percentile": 95
+  },
+  {
+    "pair": "mw_band",
+    "how": "A: molecular weight in its 30th-55th percentile band; B: the rest",
+    "a": {
+      "name": "narrow",
+      "n": 1969,
+      "path": "/home/shogo/occam/data/work/inclusion/mw_band_a/features.parquet"
+    },
+    "b": {
+      "name": "rest",
+      "n": 5836,
+      "path": "/home/shogo/occam/data/work/inclusion/mw_band_b/features.parquet"
+    },
+    "coverage": {
+      "a_to_b": 0.0,
+      "b_to_a": 0.8649060436769934
+    },
+    "factor": null,
+    "lower_direction": "a_to_b",
+    "predicts_verdicts": true,
+    "coverage_forced_by_construction": true,
+    "neighbour_percentile": 95
+  },
+  {
+    "pair": "tpsa_band",
+    "how": "A: TPSA in its 35th-60th percentile band; B: the rest",
+    "a": {
+      "name": "narrow",
+      "n": 1952,
+      "path": "/home/shogo/occam/data/work/inclusion/tpsa_band_a/features.parquet"
+    },
+    "b": {
+      "name": "rest",
+      "n": 5853,
+      "path": "/home/shogo/occam/data/work/inclusion/tpsa_band_b/features.parquet"
+    },
+    "coverage": {
+      "a_to_b": 0.0,
+      "b_to_a": 0.7914959016393442
+    },
+    "factor": null,
+    "lower_direction": "a_to_b",
+    "predicts_verdicts": true,
+    "coverage_forced_by_construction": true,
+    "neighbour_percentile": 95
+  },
+  {
+    "pair": "core_shell",
+    "how": "A: nearest 30% to the centroid; B: farthest 30%",
+    "a": {
+      "name": "core",
+      "n": 2341,
+      "path": "/home/shogo/occam/data/work/inclusion/core_shell_a/features.parquet"
+    },
+    "b": {
+      "name": "shell",
+      "n": 2341,
+      "path": "/home/shogo/occam/data/work/inclusion/core_shell_b/features.parquet"
+    },
+    "coverage": {
+      "a_to_b": 0.0,
+      "b_to_a": 0.10294745835113199
+    },
+    "factor": null,
+    "lower_direction": "a_to_b",
+    "predicts_verdicts": true,
+    "coverage_forced_by_construction": true,
+    "neighbour_percentile": 95
+  }
+]

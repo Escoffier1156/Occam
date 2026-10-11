@@ -1,0 +1,54 @@
+{
+  "dataset": "GramNegAccum: compound accumulation in Gram-negative bacteria (eNTRy rules)",
+  "role": "external validation only; not pooled with CHAMP for training",
+  "zenodo": {
+    "record": 19798859,
+    "doi": "10.5281/zenodo.19798859",
+    "title": "HergenrotherLab/GramNegAccum: Publication v1.0",
+    "published": "2026-04-26"
+  },
+  "paper": {
+    "title": "Predictive Compound Accumulation Rules Yield a Broad-Spectrum Antibiotic",
+    "authors": "Richter, M. F.; Drown, B. S.; Riley, A. P.; Garcia, A.; Shirai, T.; Svec, R. L.; Hergenrother, P. J.",
+    "journal": "Nature",
+    "year": 2017,
+    "doi": "10.1038/nature22308"
+  },
+  "license": {
+    "name": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "open": true,
+    "verified_from": "Zenodo REST API, metadata.license.id = cc-by-4.0",
+    "verified_utc": "2026-10-06",
+    "declared_on": "the Zenodo archive of tag v1.0, not on the GitHub repository (which carries no LICENSE file)"
+  },
+  "provenance": {
+    "fetched_utc": "2026-10-06",
+    "fetched_from": "https://raw.githubusercontent.com/HergenrotherLab/GramNegAccum/v1.0/accum/data/table<N>.csv",
+    "why_not_zenodo": "The Zenodo archive is an 81 MB zip that is mostly porin MD figures; the data is 207 KB of CSV. Downloading the archive to confirm equivalence was blocked by Zenodo with HTTP 403 'unusual traffic from your network', a temporary IP block.",
+    "licence_chain": "The Zenodo record declares CC BY 4.0 and lists https://github.com/HergenrotherLab/GramNegAccum/tree/v1.0 as a related identifier, so the archived object is that tag. The files here are from that same tag.",
+    "pending_verification": "Re-download the Zenodo archive once the IP block clears and check these SHA256 values against accum/data/table<N>.csv inside it. Until then the licence chain rests on the Zenodo related-identifier link rather than on a byte-level match."
+  },
+  "format_note": "The CSVs use CR-only line endings. Convert \\r to \\n before parsing, or csv.DictReader fails.",
+  "files": [
+    { "file": "table1.csv", "rows": 12, "sha256": "fb1128bbe3be1a442471d257628d177c23e7848b6d70224d3fe13432357a4a55", "has_smiles": true, "has_accum": true, "accum_class": { "Low": 9, "High": 3 } },
+    { "file": "table2.csv", "rows": 104, "sha256": "4134e54f9e1c0fcbade786143f4e443addd8f3168857b7e3370c1e9742290954", "has_smiles": true, "has_accum": true, "accum_class": { "High": 12, "Low": 88 } },
+    { "file": "table3.csv", "rows": 56, "sha256": "37738f2e5a3d8a7757d7c5f3950b3511c344b503271b3f5df20b75c01bfcd18f", "has_smiles": true, "has_accum": true, "accum_class": { "High": 16, "Low": 38 } },
+    { "file": "table4.csv", "rows": 68, "sha256": "ec082ed2af44c051c23bb3af0de71897a5c0d4149c27b926b8f76e8232a5bead", "has_smiles": "as 'mol' column", "has_accum": true, "accum_class": { "High": 36, "Low": 32 }, "note": "The n=68 training set behind the eNTRy rules, with 304 MOE descriptors." },
+    { "file": "table5.csv", "rows": 79, "sha256": "d62c611ed9235a92474b9a2fbb7da68be6d0b741d4e13893be31af3273801c03", "has_smiles": true, "has_accum": false },
+    { "file": "table6.csv", "rows": 49, "sha256": "bb3a65af57610fa69428959f6e0e48f6c76d0ff702658c7d72c06bece837f58e", "has_smiles": true, "has_accum": false, "accum_class": { "high": 42, "low": 7 } }
+  ],
+  "usable_external_set": {
+    "unique_smiles_with_numeric_accum": 151,
+    "source_tables": [1, 2, 3],
+    "duplicates_across_tables": 15,
+    "class_split": { "Low": 129, "High": 22 },
+    "caveat": "Only 151 compounds and 15% positive, against 1132 compounds at a different balance in CHAMP. Report confidence intervals; a single number here is not meaningful."
+  },
+  "eNTRy_rules": {
+    "conditions": ["ionisable nitrogen (unhindered primary amine best)", "globularity <= 0.25", "rotatable bonds <= 5"],
+    "columns_present": { "globularity": "glob", "rotatable_bonds": "RB", "clogD7.4": "clogD7.4" },
+    "note": "The published rules report no AUC, so running them on CHAMP under the same split produces a number that does not exist yet."
+  },
+  "attribution_required": "Richter et al. Nature 2017, DOI 10.1038/nature22308; data via Zenodo 10.5281/zenodo.19798859, CC BY 4.0"
+}

@@ -1,0 +1,80 @@
+{
+  "dataset": "IMI-COMBINE broad_spectrum_prediction",
+  "role": "activity axis, training data for M3",
+  "repository": {
+    "url": "https://github.com/IMI-COMBINE/broad_spectrum_prediction",
+    "cloned_utc": "2026-10-07",
+    "clone": "git clone --depth 1 (shallow; no history)",
+    "local_path": "data/raw/imi_combine/",
+    "size_mb": 137,
+    "commit": "3c222f96dfbab8172b4533d6f772f2de3b5350f6",
+    "commit_date": "2026-06-15T14:43:53+02:00",
+    "git_dir_removed": "The nested .git was deleted after recording the commit above, so the clone does not become a submodule of this repository. Re-fetch with: git clone https://github.com/IMI-COMBINE/broad_spectrum_prediction.git && git checkout 3c222f96dfbab8172b4533d6f772f2de3b5350f6"
+  },
+  "paper": {
+    "journal": "JCIM",
+    "year": 2025
+  },
+  "license": {
+    "name": "MIT",
+    "spdx": "MIT",
+    "open": true,
+    "verified_from": "GitHub licenses API and the repository's LICENSE file",
+    "verified_utc": "2026-10-07",
+    "copyright": "Copyright (c) 2023 IMI COMBINE",
+    "note": "No share-alike obligation, unlike the CC BY-SA 3.0 ChEMBL data."
+  },
+  "primary_file": {
+    "path": "data/processed/combined_bioassay_data.tsv",
+    "rows": 74202,
+    "columns": 15,
+    "verified_utc": "2026-10-07"
+  },
+  "verified_contents": {
+    "compound_smiles": "74202 filled, all distinct",
+    "compound_inchikey": "74202 filled, all distinct",
+    "gram-negative_label": {
+      "inactive": 29415,
+      "active": 11583,
+      "total": 40998
+    },
+    "gram-positive_label": {
+      "inactive": 28568,
+      "active": 17530,
+      "total": 46098
+    },
+    "fungi_label": {
+      "inactive": 13782,
+      "active": 4282
+    },
+    "acid-fast_label": {
+      "inactive": 7631,
+      "active": 3958
+    },
+    "best_class": {
+      "gram-positive": 26435,
+      "inactive": 19568,
+      "gram-negative": 11354,
+      "fungi": 9539,
+      "acid-fast": 7306
+    },
+    "continuous_values": "the gram-negative / gram-positive / fungi / acid-fast columns hold pMIC values, filled for the same rows as their labels",
+    "compound_source": {
+      "chembl_34": 59393,
+      "spark": 7429,
+      "chembl_34, spark": 7104,
+      "coadd_03_01-02-2020": 143,
+      "coadd_03_01-02-2020, spark": 55,
+      "chembl_34, coadd_03_01-02-2020, spark": 40,
+      "chembl_34, coadd_03_01-02-2020": 38
+    }
+  },
+  "note_on_upstream_licences": "Rows are aggregated from ChEMBL 34, SPARK and a 2020 CO-ADD export. The MIT licence covers this repository's compilation; the underlying sources carry their own terms (ChEMBL is CC BY-SA 3.0). Check before redistributing derived data.",
+  "other_files_of_interest": [
+    "data/processed/bacterial_chembl_34.tsv",
+    "data/processed/bacterial_coadd.tsv",
+    "data/processed/bacterial_spark.tsv",
+    "data/processed/combined_model_comparison_results.tsv"
+  ],
+  "attribution_required": "IMI-COMBINE broad_spectrum_prediction, MIT licence, JCIM 2025"
+}

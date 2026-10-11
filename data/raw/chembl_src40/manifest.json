@@ -1,0 +1,40 @@
+{
+  "source": "https://www.ebi.ac.uk/chembl/api/data src_id=40",
+  "fetched_utc": "2026-10-06T05:58:39+00:00",
+  "license": "CC BY-SA 3.0; cite Mendez et al. Nucleic Acids Res 2019 47(D1):D930-D940",
+  "assays": [
+    {
+      "assay_chembl_id": "CHEMBL3832903",
+      "strain": "ATCC 27853; Type strain",
+      "organism": "Pseudomonas aeruginosa",
+      "description": "Antibacterial activity against Pseudomonas aeruginosa ATCC 27853; Growth inhibition at 32 ug/mL in CAMBH media using NBS plates.",
+      "rows": 20,
+      "file": "CHEMBL3832903.jsonl"
+    },
+    {
+      "assay_chembl_id": "CHEMBL3832910",
+      "strain": "ATCC 27853; Type strain",
+      "organism": "Pseudomonas aeruginosa",
+      "description": "Antibacterial activity against Pseudomonas aeruginosa ATCC 27853; Growth inhibition at 20 uM in CAMBH media using NBS plates.",
+      "rows": 0,
+      "file": "CHEMBL3832910.jsonl"
+    },
+    {
+      "assay_chembl_id": "CHEMBL4296187",
+      "strain": "ATCC 27853",
+      "organism": "Pseudomonas aeruginosa",
+      "description": "Antibacterial activity against Pseudomonas aeruginosa ATCC 27853 (CO-ADD:GN_042); MIC in CAMBH media using NBS plates, by OD(600)",
+      "rows": 24267,
+      "file": "CHEMBL4296187.jsonl"
+    },
+    {
+      "assay_chembl_id": "CHEMBL4296802",
+      "strain": "PAO397",
+      "organism": "Pseudomonas aeruginosa",
+      "description": "Antibacterial activity against Pseudomonas aeruginosa PAO397 [PAO1 d(mexAB-oprM) d(mexCD-oprJ) d(mexEF-oprN) d(mexJKL) d(mexXY) d(opmH)] (CO-ADD:GN_211); MIC in CAMBH media using NBS plates, by OD(600)",
+      "rows": 18406,
+      "file": "CHEMBL4296802.jsonl"
+    }
+  ],
+  "total_rows": 42693
+}

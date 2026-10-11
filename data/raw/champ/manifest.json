@@ -1,0 +1,81 @@
+{
+  "dataset": "CHAMP: Click-Based Determination of Accumulation of Molecules in Escherichia coli",
+  "role": "permeability axis, training data for M3",
+  "zenodo": {
+    "record": 17434251,
+    "doi": "10.5281/zenodo.17434251",
+    "url": "https://zenodo.org/records/17434251",
+    "published": "2025-10-24"
+  },
+  "license": {
+    "name": "CC BY 4.0",
+    "spdx": "CC-BY-4.0",
+    "url": "https://creativecommons.org/licenses/by/4.0/",
+    "open": true,
+    "verified_from": "Zenodo REST API, metadata.license.id = cc-by-4.0",
+    "verified_utc": "2026-10-07",
+    "obligations": ["Attribution to the authors and the Zenodo record."]
+  },
+  "fetched_utc": "2026-10-07",
+  "fetched_from": "https://zenodo.org/api/records/17434251/files/Click-Based%20Determination%20of%20Accumulation%20of%20Molecules%20in%20Escherichia%20coli.xlsx/content",
+  "fetch_note": "The /records/<id>/files/<name>?download=1 path returned HTTP 403 ('unusual traffic'), a temporary IP block rather than a policy restriction. The API content endpoint served the same file.",
+  "files": [
+    {
+      "file": "CHAMP_accumulation_E_coli.xlsx",
+      "bytes": 1680505,
+      "sha256": "56601d92fb907b2fc6a7da583411c6e6cff923c9b63aa512703992706f8d6bb0",
+      "sheets": 18
+    }
+  ],
+  "measurement": {
+    "method": "Chloroalkane azide membrane permeability (CHAMP): click chemistry readout of cytosolic accumulation",
+    "note": "Direct measurement of how much compound reaches the cytosol, not a growth-inhibition proxy."
+  },
+  "sheets_with_smiles": [
+    {
+      "sheet": "Fig. 2l (left panel)",
+      "part": "xl/worksheets/sheet13.xml",
+      "columns": { "A": "#", "B": "Coordinate", "C": "azide class", "D": "SMILES", "E": "PS-DBCO beads (2 h)", "F": "WT E. coli" }
+    },
+    {
+      "sheet": "Fig. 3c, Fig. 3e, Fig. 3g",
+      "part": "xl/worksheets/sheet16.xml",
+      "columns": { "D": "SMILES", "E": "PMBN-treated WT E. coli", "F": "Porinated WT E. coli" }
+    },
+    {
+      "sheet": "Fig. 4d,e,f,and g data",
+      "part": "xl/worksheets/sheet18.xml",
+      "columns": { "D": "SMILES", "E": "Porinated WT E. coli", "F": "Porinated TolC KO E. coli" }
+    }
+  ],
+  "layout": {
+    "header_row_index": 1,
+    "first_data_row_index": 2,
+    "data_rows": 1152
+  },
+  "verified_contents": {
+    "smiles_present": 1152,
+    "smiles_parse_ok": 1152,
+    "smiles_parse_failed": 0,
+    "unique_smiles": 1132,
+    "value_range": "roughly 0..1, normalised; one missing value in the PS-DBCO column",
+    "verified_with": "RDKit 2025.03.6"
+  },
+  "strain_conditions": {
+    "WT": "wild-type E. coli",
+    "PMBN-treated WT": "outer membrane chemically permeabilised",
+    "Porinated WT": "hyperporinated (outer membrane permeability raised)",
+    "Porinated TolC KO": "hyperporinated and efflux-deficient"
+  },
+  "why_this_dataset": [
+    "Permeability and efflux appear as independent axes, so 'cannot get in' is separable from 'is pumped out'.",
+    "CC BY 4.0, unlike the CC BY-NC-ND alternative recorded in data/raw/sci_rep_2025/manifest.json.",
+    "Direct cytosolic measurement rather than a growth-inhibition proxy."
+  ],
+  "known_limitations": [
+    "1132 unique compounds is small: a scaffold-split test set is about 113 rows, so single-split numbers carry wide intervals. Report over many seeds with bootstrap CIs.",
+    "The paper develops the assay and reports no machine-learning baseline, so a baseline has to be trained here under matched conditions.",
+    "Assay differs from GramNegAccum (LC-MS/MS whole-cell); do not pool them for training."
+  ],
+  "attribution_required": "CHAMP dataset, Zenodo record 17434251, DOI 10.5281/zenodo.17434251, CC BY 4.0"
+}

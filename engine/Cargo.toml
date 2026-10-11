@@ -1,0 +1,18 @@
+[package]
+name = "engine"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+parquet = { version = "60.0.0", default-features = false, features = ["snap"] }
+
+[profile.release]
+debug = false
+
+[features]
+# Binding needs substructure, which physicochemical numbers cannot express;
+# this build reads a 2048-bit fingerprint and skips the quadratic expansion.
+fingerprint = []
+# Nine descriptors with no quadratic expansion: for separating overfitting
+# from a genuine reversal when the training set is too small for 54 weights.
+linear = []
