@@ -113,6 +113,19 @@ class InvariantsLocked(unittest.TestCase):
                     f"{relative} changed without manifest.json changing with "
                     f"it. Re-vendor and re-record, or revert")
 
+    def test_the_vendored_copy_carries_a_licence(self):
+        """It was NOT DECLARED, which meant nobody receiving the bundle had a
+        grant. A vendored dependency without one cannot be handed over."""
+        recorded = json.loads((VENDORED / "manifest.json").read_text())
+        licence = recorded["licence"]
+        self.assertEqual(licence.get("spdx"), "Apache-2.0")
+        for name in licence["files"]:
+            self.assertTrue((VENDORED / name).exists(), f"{name} is missing")
+        text = (VENDORED / "LICENSE").read_text()
+        self.assertIn("Apache License", text)
+        self.assertIn("Grant of Patent License", text,
+                      "the patent clause is why this licence was chosen")
+
     def test_the_guard_is_not_silently_absent(self):
         """Running without it used to skip, and a skip reads like a pass."""
         self.assertTrue(

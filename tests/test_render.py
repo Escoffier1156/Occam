@@ -126,6 +126,9 @@ class RecordShapesDoNotReachTheScreen(unittest.TestCase):
         and misdescribes the verdict."""
         row = {"scaffolds_estimated": 118, "survivors": 123,
                "exact": {"scaffolds_exact": 119, "survivors": 123}}
+        # The shape a record from the second-pass window has. py/sweep.py
+        # counts exactly now, so new records carry distinct_scaffolds, and
+        # both have to read correctly.
         phrase = render_mod.scaffold_phrase(row)
         self.assertIn("119", phrase)
         self.assertNotIn("118", phrase)
@@ -135,6 +138,13 @@ class RecordShapesDoNotReachTheScreen(unittest.TestCase):
         phrase = render_mod.scaffold_phrase({"scaffolds_estimated": 118})
         self.assertIn("about 118", phrase)
         self.assertIn("sketch", phrase)
+
+    def test_an_exact_count_from_the_sweep_says_so(self):
+        phrase = render_mod.scaffold_phrase({"distinct_scaffolds": 539,
+                                             "counted_exactly": True})
+        self.assertIn("539", phrase)
+        self.assertIn("counted exactly", phrase)
+        self.assertNotIn("about", phrase)
 
     def test_a_provenance_says_what_it_licenses(self):
         self.assertEqual(render_mod.provenance("published"),

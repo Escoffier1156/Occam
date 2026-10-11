@@ -222,18 +222,23 @@ def state(value):
 
 
 def scaffold_phrase(row):
-    """The scaffold count, saying which of the two numbers this is.
+    """The scaffold count, saying which kind of number it is.
 
-    sweep.py estimates distinct scaffolds from a fixed-width sketch, and
-    propose.py counts them exactly in a second pass whenever the sketch cannot
-    separate feasible from infeasible. Both numbers end up on the row. Showing
-    the estimate when the exact count exists understates what is known -- and
-    once an exact count has decided the verdict, "about" is wrong about the
-    verdict as well as the number.
+    py/sweep.py counts distinct scaffolds exactly, so the usual answer is a
+    count. A sweep written while the HyperLogLog sketch was still in place
+    carries an estimate instead, and a record from the window where both
+    existed carries the estimate plus a second-pass exact count. All three are
+    read, and each says what it is -- a reader comparing an old proposal
+    against a new one must not have to work out which was which.
     """
-    exact = (row.get("exact") or {}).get("scaffolds_exact")
-    if exact is not None:
-        return f"{exact:,} distinct scaffolds, counted exactly"
+    if row.get("distinct_scaffolds") is not None:
+        exact = row.get("counted_exactly", True)
+        count = row["distinct_scaffolds"]
+        return (f"{count:,} distinct scaffolds, counted exactly" if exact
+                else f"about {count:,} distinct scaffolds (sketch estimate)")
+    second_pass = (row.get("exact") or {}).get("scaffolds_exact")
+    if second_pass is not None:
+        return f"{second_pass:,} distinct scaffolds, counted exactly"
     return (f"about {row['scaffolds_estimated']:,} distinct scaffolds "
             f"(sketch estimate)")
 

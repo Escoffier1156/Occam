@@ -194,38 +194,69 @@ class Item61NoWeightedScore(unittest.TestCase):
 
 class Item62TheSketchErrorStaysOutOfTheDecision(unittest.TestCase):
     """62: deciding on a conservative lower bound of the sketch leaves the
-    error model inside the verdict. The sketch separates the clear cases and
-    an exact second pass decides the rest."""
+    error model inside the verdict.
 
-    def test_the_uncertain_band_is_a_multiple_of_the_sketch_error(self):
+    The sweep keeps the sketch, because its fixed width per specification is
+    invariant 2 and an exact set would make the sweep's state grow with the
+    distinct scaffold count. The error is kept out of the decision instead by
+    counting exactly, in a second pass, every specification whose number a
+    person will see or act on: the uncertain band, the frontier, the winner.
+
+    An exact set was tried in place of the sketch and reverted. The cost was
+    measured: 330,610 scaffolds across 27 specifications at 127.4 bytes each,
+    40 MiB, growing with the library. Removing an error model is not worth
+    putting a data-dependent term into the one invariant this project has
+    verified over four orders of magnitude.
+    """
+
+    def test_the_band_is_three_standard_errors(self):
         import propose as propose_mod
 
         self.assertAlmostEqual(propose_mod.UNCERTAIN_BAND,
                                3 * propose_mod.SKETCH_RELATIVE_ERROR)
 
-    def test_an_estimate_inside_the_band_is_not_decided_by_the_sketch(self):
+    def test_the_sketch_never_decides_inside_the_band(self):
         import propose as propose_mod
 
         required = 120
-        inside = {"specification": "x", "choices": {"nitrogen": "primary_amine"},
-                  "survivors": 123, "distinct_scaffolds_estimated": required,
-                  "provenance": {"weakest": "published", "per_knob": {}}}
-        row = propose_mod.classify(inside, required,
-                                   {"nitrogen": "primary_amine"})
-        self.assertEqual(row["state_by_sketch"], "uncertain",
-                         "an estimate at the requirement was called either way")
+        row = propose_mod.classify(
+            {"specification": "x", "choices": {"nitrogen": "primary_amine"},
+             "survivors": 123, "distinct_scaffolds_estimated": required,
+             "provenance": {"weakest": "published", "per_knob": {}}},
+            required, {"nitrogen": "primary_amine"})
+        self.assertEqual(row["state_by_sketch"], "uncertain")
 
-    def test_a_clear_case_is_decided_without_a_second_pass(self):
+    def test_a_clear_case_needs_no_second_pass(self):
         import propose as propose_mod
 
         required = 120
         for estimate, expected in ((1000, "feasible"), (10, "infeasible")):
             row = propose_mod.classify(
-                {"specification": "x", "choices": {"nitrogen": "primary_amine"},
+                {"specification": "x",
+                 "choices": {"nitrogen": "primary_amine"},
                  "survivors": 1, "distinct_scaffolds_estimated": estimate,
                  "provenance": {"weakest": "published", "per_knob": {}}},
                 required, {"nitrogen": "primary_amine"})
             self.assertEqual(row["state_by_sketch"], expected)
+
+    def test_the_frontier_is_counted_exactly_even_outside_the_band(self):
+        """Three standard errors is a probabilistic guarantee, and with 27
+        specifications in one run the chance that none falls outside it is not
+        1. Every row a reader compares is counted, band or no band."""
+        text = source("propose.py")
+        decision = text[text.index("def propose("):]
+        self.assertIn("provisional", decision,
+                      "the frontier is no longer chosen before the exact pass")
+        self.assertIn("FRONTIER", decision)
+        self.assertIn('"state_by_sketch"] == "uncertain"', decision,
+                      "the band is no longer part of what gets counted")
+
+    def test_what_was_counted_exactly_is_recorded(self):
+        """A reader must be able to tell which numbers were counted and which
+        were estimated, without working it out."""
+        text = source("propose.py")
+        self.assertIn('"counted_exactly"', text)
+        self.assertIn('"counted_by_sketch_only"', text)
 
 
 class Item73SentenceInitialMustBindsEverything(unittest.TestCase):
@@ -291,3 +322,100 @@ class Item80AThresholdNeverAppearsWithoutItsSource(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheExactPassHoldsOneSetAtATime(unittest.TestCase):
+    """The frontier's limit of 8 bounds how many exact passes run, not the
+    memory of each. Eight sets alive at once is 45 MB at the widest
+    specification measured -- the figure the sketch exists to avoid. Invariant
+    3, one bulk at a time, applies to the second pass too."""
+
+    def test_the_exact_count_returns_counts_and_not_the_set(self):
+        """Structural, not a measurement: a caller cannot accumulate what it
+        is never handed."""
+        import propose as propose_mod
+
+        returns = [node for node in ast.walk(ast.parse(
+            source("propose.py"))) if isinstance(node, ast.FunctionDef)
+            and node.name == "exact_scaffold_count"]
+        self.assertEqual(len(returns), 1)
+        keys = set()
+        for node in ast.walk(returns[0]):
+            if isinstance(node, ast.Return) and isinstance(node.value, ast.Dict):
+                keys = {k.value for k in node.value.keys
+                        if isinstance(k, ast.Constant)}
+        self.assertEqual(keys, {"survivors", "scaffolds_exact",
+                                "held_strings"},
+                         "the exact pass returns something other than counts")
+
+    def test_the_passes_run_one_after_another(self):
+        """A comprehension or a map over the whole set would hold them all."""
+        tree = ast.parse(source("propose.py"))
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp,
+                                     ast.GeneratorExp)):
+                continue
+            for inner in ast.walk(node):
+                if (isinstance(inner, ast.Call)
+                        and isinstance(inner.func, ast.Name)
+                        and inner.func.id == "exact_scaffold_count"):
+                    self.fail("the exact pass is run inside a comprehension, "
+                              "which holds every result at once")
+
+    def test_the_frontier_width_is_a_declared_constant(self):
+        import propose as propose_mod
+
+        self.assertIsInstance(propose_mod.FRONTIER, int)
+        self.assertGreater(propose_mod.FRONTIER, 0)
+
+
+class Item25AndItem81TwoScopesNeverShareARow(unittest.TestCase):
+    """25: say which count a number is. 81: if the count for the same label
+    moves between outputs, suspect the scope.
+
+    Found live. A sweep read 20,000 rows and an exact second pass was asked
+    for 100,000, and the frontier printed "123 molecules pass, 536 distinct
+    scaffolds" -- a distinct count larger than the population it came from."""
+
+    SWEPT = {"summary": {"limit": 20000},
+             "baseline": {"nitrogen": "primary_amine"},
+             "specifications": []}
+
+    def test_a_second_pass_over_a_different_amount_is_refused(self):
+        import propose as propose_mod
+
+        with self.assertRaises(ValueError) as caught:
+            propose_mod.propose(self.SWEPT, 120, part_dir="data/work/zinc_O",
+                                limit=100000)
+        self.assertIn("20000", str(caught.exception))
+        self.assertIn("100000", str(caught.exception))
+
+    def test_a_sweep_that_recorded_no_limit_is_also_refused(self):
+        """Records written before the limit was recorded cannot be matched."""
+        import propose as propose_mod
+
+        old = {"summary": {}, "baseline": {"nitrogen": "primary_amine"},
+               "specifications": []}
+        with self.assertRaises(ValueError):
+            propose_mod.propose(old, 120, part_dir="data/work/zinc_O",
+                                limit=100000)
+
+    def test_the_same_amount_is_accepted(self):
+        import propose as propose_mod
+
+        same = {"summary": {"limit": 20000},
+                "baseline": {"nitrogen": "primary_amine"},
+                "specifications": []}
+        out = propose_mod.propose(same, 120, part_dir="data/work/zinc_O",
+                                  limit=20000)
+        self.assertIn("evaluated no specifications", out["verdict"],
+                      "an empty sweep used to raise from max() over nothing")
+
+    def test_the_sweep_records_what_it_read(self):
+        self.assertIn('"limit": limit,', source("sweep.py"))
+
+    def test_a_distinct_count_cannot_exceed_its_population(self):
+        """The cheapest possible check, and it catches every way two scopes
+        get mixed."""
+        self.assertIn("distinct scaffolds from", source("propose.py"))
+        self.assertIn("is impossible", source("propose.py"))

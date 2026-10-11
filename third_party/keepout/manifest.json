@@ -16,9 +16,17 @@
     "keepout/core.py": "e832ea8d2a48d01cefb834280b67306af0d15a8eeba2484fc85a8d66c0ef58d7"
   },
   "licence": {
-    "state": "NOT DECLARED",
-    "detail": "the upstream repository carries no LICENSE file. Without one there is no grant to anyone receiving this bundle, even though the repository is public and belongs to this project's owner",
-    "blocks": "handing this bundle to anyone outside the project. Add a licence upstream and record it here before the ZIP goes out"
+    "name": "Apache License 2.0",
+    "spdx": "Apache-2.0",
+    "files": [
+      "LICENSE",
+      "NOTICE"
+    ],
+    "declared_utc": "2026-10-11",
+    "was": "NOT DECLARED until 2026-10-11. The upstream repository carried no LICENSE file, so nothing granted anything to anyone receiving this bundle, public repository or not",
+    "why_this_one": "Apache-2.0 states its patent grant explicitly, and scopes it to claims necessarily infringed by this software's own contribution. A licence silent on patents sitting beside a project with a patent application in flight invites an argument about implied grants; this one says plainly what is granted and what is not. KeepOut locks regions of a syntax tree, which is not the subject matter of that application, so the grant does not reach it. Permissive, so bundling it inside this repository propagates no obligation, and it disclaims warranty, which a bundle handed to someone else needs",
+    "not_legal_advice": "chosen on the reasoning above, not by a lawyer. Whoever handles the patent application should be told the SCOPE, not the name: a tool that locks regions of a syntax tree has been published under Apache-2.0, and that licence's patent grant is limited to claims necessarily infringed by that tool itself. Saying only \"Apache-2.0\" makes the filing side start by establishing the scope.",
+    "upstream_still_unlicensed": "this LICENSE covers the vendored copy here, which is unpublished. Adding one to the public upstream repository is itself an act of publication and cannot be undone, so it waits until the patent position is settled"
   },
   "divergence": "tests/test_invariants_locked.py hashes these files and fails if the vendored copy changed without this manifest changing with it"
 }

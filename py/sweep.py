@@ -245,6 +245,9 @@ def run(part_dir, variants, limit=None, exact_check=False):
     state = (8 + variants[0].scaffolds.nbytes() + 48) * len(variants) if variants else 0
     return {
         "library": str(part_dir),
+        # Recorded so that a later pass cannot be run over a different amount
+        # of the library and have its numbers put in the same row as these.
+        "limit": limit,
         "evaluated": evaluated,
         "unreadable": unreadable,
         "variants": len(variants),

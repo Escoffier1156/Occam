@@ -63,6 +63,10 @@ WORK = ROOT / "data" / "work"
 # within which the estimate is not allowed to decide.
 SKETCH_RELATIVE_ERROR = 0.016
 UNCERTAIN_BAND = 3 * SKETCH_RELATIVE_ERROR
+# How many specifications the frontier shows, and so how many get an exact
+# count beyond the uncertain band. A handful, fixed: the cost of exactness has
+# to stay independent of the library's size.
+FRONTIER = 8
 
 
 def total_steps(choices, baseline):
@@ -98,9 +102,23 @@ def classify(spec, required, baseline):
 def exact_scaffold_count(part_dir, choices, limit=None):
     """Counts distinct scaffolds exactly for one variant, in a second pass.
 
-    Only run for the handful of variants the sketch could not separate. Holding
-    an exact set is bounded by the survivor count of that one variant, not by
-    the library, and the caller is told what it cost.
+    ONE VARIANT AT A TIME, AND THE SET NEVER LEAVES THIS FUNCTION
+
+    The set is local and what comes back is a count, so the caller cannot
+    accumulate sets even by accident. That matters because the frontier's
+    limit of 8 bounds the NUMBER of exact passes and not the memory of each:
+    eight sets held at once would be eight times the peak, and at the widest
+    specification measured here -- 46,437 scaffolds -- that is 45 MB, which is
+    the whole figure the sketch exists to avoid.
+
+    Run sequentially, the peak is one specification's set: about 5.6 MiB at
+    that width. This is invariant 3 applied to the second pass -- one bulk
+    alive at a time -- and the cost is I/O, one pass over the library per
+    specification rather than one in total.
+
+    If a budget ever justifies running k of these at once, k follows from the
+    budget by division: k x (widest scaffold count) x (bytes per scaffold).
+    That is arithmetic from a declared budget, not an invented weight.
     """
     variant = sweep_mod.Variant(choices)
     nitrogen = {s["name"]: s for s in knobs_mod.settings_of("nitrogen")}
@@ -121,6 +139,14 @@ def exact_scaffold_count(part_dir, choices, limit=None):
             scaffolds.add(MurckoScaffold.MurckoScaffoldSmiles(mol=mol) or "")
         except ValueError:
             scaffolds.add("")
+    # A distinct count cannot exceed the population it was counted from. The
+    # cheapest possible check, and it catches every way two scopes can get
+    # mixed into one row.
+    if len(scaffolds) > survivors:
+        raise ValueError(
+            f"{len(scaffolds):,} distinct scaffolds from {survivors:,} "
+            f"survivors is impossible. Two different populations have been "
+            f"counted as one.")
     return {"survivors": survivors, "scaffolds_exact": len(scaffolds),
             "held_strings": len(scaffolds)}
 
@@ -140,31 +166,83 @@ def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
             f"knob that is gone.")
     rows = [classify(s, required, baseline) for s in sweep_report["specifications"]]
 
-    uncertain = [r for r in rows if r["state_by_sketch"] == "uncertain"]
-    if exact and uncertain and part_dir:
-        for row in uncertain:
+    # WHICH SPECIFICATIONS GET COUNTED EXACTLY, AND WHY THAT SET
+    #
+    # The sweep holds a fixed-width sketch per specification, so its state
+    # does not grow with the library. That is invariant 2 and it is the most
+    # verified result here, so the sweep is not where exactness is bought.
+    #
+    # It is bought in a second pass over a set whose SIZE DOES NOT DEPEND ON
+    # THE LIBRARY:
+    #
+    #   every specification inside the uncertain band, where the sketch by
+    #   construction cannot decide;
+    #
+    #   every specification that will be shown on the frontier, because those
+    #   are the numbers a person compares when making the trade, and a 1.6%
+    #   error between two rows of a table is read as a difference;
+    #
+    #   the one that ends up recommended.
+    #
+    # The band is a probabilistic guarantee: at three standard errors a single
+    # specification falls outside it rarely, but with 27 of them in one run
+    # "rarely" is not negligible. Counting the frontier regardless removes the
+    # band from everything a reader sees, and widening the band costs more
+    # exact passes rather than more memory.
+    for row in rows:
+        row["state"] = row["state_by_sketch"]
+
+    def rank(row):
+        # Least loosened first, then published provenance, then more survivors
+        # as a deterministic tie-break rather than a preference.
+        return (row["steps_from_baseline"],
+                0 if row["provenance"]["weakest"] == "published" else 1,
+                -row["survivors"])
+
+    # Provisional, on the sketch: enough to decide WHICH rows are worth an
+    # exact pass. The order is settled again afterwards on the exact counts.
+    provisional = sorted((r for r in rows if r["state"] != "infeasible"), key=rank)
+    wanted = {id(r): r for r in provisional[:FRONTIER]}
+    wanted.update({id(r): r for r in rows
+                   if r["state_by_sketch"] == "uncertain"})
+
+    # A sweep read some amount of the library; a second pass must read the
+    # same amount or its numbers belong to a different population. Mixing them
+    # produced a row reading "123 molecules pass, 536 distinct scaffolds",
+    # which cannot happen -- a distinct count cannot exceed what it was
+    # counted from. Scope, as in contraindications 25 and 81.
+    swept_limit = sweep_report.get("summary", {}).get("limit", "unrecorded")
+    if exact and part_dir and swept_limit != limit:
+        raise ValueError(
+            f"the sweep read limit={swept_limit!r} and the exact pass was "
+            f"asked for limit={limit!r}. Counts from two different amounts of "
+            f"the library cannot go in one row. Rerun with the same limit, or "
+            f"pass exact=False to keep the sketch's numbers.")
+
+    if exact and part_dir and wanted:
+        for row in wanted.values():
             measured = exact_scaffold_count(part_dir, row["choices"], limit)
             row["exact"] = measured
-            row["state"] = ("feasible" if measured["scaffolds_exact"] >= required
+            # The exact pass recounted the survivors too. Keeping the sketch
+            # pass's figure beside the exact scaffold count is what produced
+            # the impossible row.
+            row["survivors"] = measured["survivors"]
+            row["state"] = ("feasible"
+                            if measured["scaffolds_exact"] >= required
                             else "infeasible")
-    for row in rows:
-        row.setdefault("state", row["state_by_sketch"])
 
-    feasible = [r for r in rows if r["state"] == "feasible"]
-    # Least loosened first, then published provenance, then more survivors as a
-    # deterministic tie-break rather than a preference.
-    feasible.sort(key=lambda r: (r["steps_from_baseline"],
-                                 0 if r["provenance"]["weakest"] == "published" else 1,
-                                 -r["survivors"]))
+    feasible = sorted((r for r in rows if r["state"] == "feasible"), key=rank)
 
     out = {
         "request": {"distinct_scaffolds_required": required,
                     "specification_as_asked": baseline},
         "verdict": None,
         "recommended": None,
-        "frontier": feasible[:8],
+        "frontier": feasible[:FRONTIER],
         "infeasible_count": sum(1 for r in rows if r["state"] == "infeasible"),
-        "uncertain_resolved_exactly": [r["specification"] for r in uncertain],
+        "counted_exactly": [r["specification"] for r in rows if "exact" in r],
+        "counted_by_sketch_only": [r["specification"] for r in rows
+                                   if "exact" not in r],
         "blocked_knobs": knobs_mod.BLOCKED,
         "how_this_was_chosen": [
             "a variant must reach the required distinct scaffold count; the "
@@ -189,6 +267,12 @@ def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
                          "looser one can"
         out["recommended"] = feasible[0]
         out["as_asked"] = as_asked
+    elif not rows:
+        # A sweep with no specifications in it. Reached by a record that was
+        # written before anything was evaluated; max() over nothing raised
+        # here, which said nothing about why.
+        out["verdict"] = ("the sweep evaluated no specifications, so there is "
+                          "nothing to propose. Rerun the sweep")
     else:
         best = max(rows, key=lambda r: r["scaffolds_estimated"])
         out["verdict"] = "no setting of these knobs can fill the request"
@@ -220,6 +304,9 @@ def main():
                          exact=not args.no_exact)
     except knobs_mod.Retired as retired:
         print(f"stopping: {retired.args[0]}")
+        return 1
+    except ValueError as mismatch:
+        print(f"stopping: {mismatch.args[0]}")
         return 1
     args.out.write_text(json.dumps(result, indent=2) + "\n")
 
