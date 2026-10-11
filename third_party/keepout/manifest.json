@@ -1,0 +1,24 @@
+{
+  "name": "KeepOut",
+  "what_it_does": "refuses structural edits to the regions marked [LOCK] in engine/ and to the guards the memory invariants depend on. tests/test_invariants_locked.py runs it",
+  "why_vendored": "it used to be read from a sibling checkout named by an absolute path in shell.nix, so on any other machine the guard was silently absent and the lock test skipped. The invariant it protects is the load-bearing claim of this project, so it travels with the repository",
+  "upstream": {
+    "url": "https://github.com/Escoffier1156/KeepOut.git",
+    "commit": "ee9ac0a4f20583772e84ea70f4d5b8317e6915f0",
+    "commit_subject": "style: Add iconic KeepOut ASCII Art banner to CLI and README.md",
+    "committed": "2026-08-05T12:19:10+09:00",
+    "vendored_utc": "2026-10-11",
+    "vendored_from": "/home/shogo/KeepOut/src/keepout"
+  },
+  "files": {
+    "keepout/__init__.py": "83f7459ea2f3377134d832dc86633e8ef91fd3e2ac053706ebf8dd3dc2c705f5",
+    "keepout/cli.py": "dbaf3f33e3c244d1114af11f7e8e49d8fd40080fa97629d995212c58b4836ae7",
+    "keepout/core.py": "e832ea8d2a48d01cefb834280b67306af0d15a8eeba2484fc85a8d66c0ef58d7"
+  },
+  "licence": {
+    "state": "NOT DECLARED",
+    "detail": "the upstream repository carries no LICENSE file. Without one there is no grant to anyone receiving this bundle, even though the repository is public and belongs to this project's owner",
+    "blocks": "handing this bundle to anyone outside the project. Add a licence upstream and record it here before the ZIP goes out"
+  },
+  "divergence": "tests/test_invariants_locked.py hashes these files and fails if the vendored copy changed without this manifest changing with it"
+}

@@ -18,6 +18,7 @@ Set OCCAM_ALLOW_UNLOCKED=1 to run the rest of the suite without KeepOut
 present. It prints what is unprotected rather than skipping quietly.
 """
 
+import hashlib
 import json
 import os
 import subprocess
@@ -27,7 +28,11 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
 DB = ROOT / "keepout.json"
-KEEPOUT_SRC = os.environ.get("KEEPOUT_SRC", "/home/shogo/KeepOut/src")
+# Vendored, so the default is inside the repository. It was an absolute path
+# to a sibling checkout, and everywhere that path did not exist the guard was
+# absent and the test below skipped -- which looks the same as passing.
+VENDORED = ROOT / "third_party" / "keepout"
+KEEPOUT_SRC = os.environ.get("KEEPOUT_SRC", str(VENDORED))
 
 # Every region that must stay locked, and what it is there for. A lock going
 # missing is a finding, not a detail.
@@ -87,6 +92,34 @@ class InvariantsLocked(unittest.TestCase):
                     self.fail(f"lock retired: {key} -- {why}")
                 self.assertEqual(locks[key]["mode"], "ast", f"{key} is no longer an ast lock")
                 self.assertTrue(locks[key].get("ast_hash"), f"{key} has no hash recorded")
+
+    def test_the_vendored_copy_matches_its_manifest(self):
+        """A vendored dependency that drifts from its record is worse than a
+        missing one: it still runs, and nothing says which version ran."""
+        manifest_path = VENDORED / "manifest.json"
+        self.assertTrue(manifest_path.exists(),
+                        f"{manifest_path} missing; the vendored KeepOut has "
+                        f"no record of where it came from")
+        recorded = json.loads(manifest_path.read_text())
+        self.assertTrue(recorded["upstream"]["commit"],
+                        "no upstream commit recorded")
+        for relative, expected in recorded["files"].items():
+            path = VENDORED / relative
+            with self.subTest(file=relative):
+                self.assertTrue(path.exists(), f"{relative} is gone")
+                actual = hashlib.sha256(path.read_bytes()).hexdigest()
+                self.assertEqual(
+                    actual, expected,
+                    f"{relative} changed without manifest.json changing with "
+                    f"it. Re-vendor and re-record, or revert")
+
+    def test_the_guard_is_not_silently_absent(self):
+        """Running without it used to skip, and a skip reads like a pass."""
+        self.assertTrue(
+            keepout_available(),
+            f"KeepOut is vendored at {VENDORED} and is not there. It is what "
+            f"stops a tidy-up from removing a guard the invariants depend on; "
+            f"its absence is a failure, not a skip.")
 
     @unittest.skipUnless(keepout_available(), "KeepOut not installed")
     def test_no_locked_region_has_been_altered(self):

@@ -91,9 +91,12 @@ pkgs.mkShell {
 
   # KeepOut guards the memory invariants: it refuses structural edits to the
   # regions marked [LOCK] in the engine and to the guards that caught real
-  # failures. It lives in a sibling checkout rather than nixpkgs, so its source
-  # is put on the path here instead of being built as a package.
-  KEEPOUT_SRC = "/home/shogo/KeepOut/src";
+  # failures. It is not in nixpkgs, and it used to be read from a sibling
+  # checkout at an absolute path -- which meant that on any machine but one
+  # the guard was simply absent and the lock test skipped itself. It is
+  # vendored now, so it travels with the repository and what is tested here is
+  # what ships. third_party/keepout/manifest.json records the upstream commit.
+  KEEPOUT_SRC = toString ./third_party/keepout;
 
   shellHook = ''
     # Printing versions costs ~5s (three python starts, jax import alone is 1-3s),

@@ -159,7 +159,7 @@ occam --spec request.json    # 記録・提出用。こちらが正
 
 ### テスト
 
-Python **102本** + Rust **11本**。KeepOut ロック **9箇所**。
+Python **104本** + Rust **11本**。KeepOut ロック **9箇所**。
 
 ```bash
 nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_ingest.py \
@@ -217,6 +217,22 @@ nix-shell --run 'cd engine && cargo test --release'
 **この3つを壊す変更は、速度が上がっても却下。** ただし「1パスで学習する」は不変条件ではない（メモリの話であってI/O回数の話ではない）。多エポックは可。
 
 ### 不変条件は KeepOut で機械的に守られている
+
+**KeepOut は `third_party/keepout/` に同梱してある**（2026-10-11）。それまでは
+`shell.nix` が `/home/shogo/KeepOut/src` という絶対パスを指していて、**他のどのマシンでも
+ガードが不在になり、ロック検査が自分を skip していた。**skip は pass と同じ顔をする。
+
+| | |
+|---|---|
+| 上流 | `https://github.com/Escoffier1156/KeepOut.git` commit `ee9ac0a` |
+| 記録 | `third_party/keepout/manifest.json`（commit・3ファイルの SHA256） |
+| 乖離の検出 | `tests/test_invariants_locked.py` がハッシュを照合。manifest を直さずにコピーを変えると落ちる |
+| 不在の扱い | **skip ではなく失敗**（`test_the_guard_is_not_silently_absent`） |
+
+> **ライセンスが未宣言。**上流に LICENSE が無いので、**この束を外部に渡す前に上流で
+> ライセンスを決めて manifest に記録する必要がある。**公開リポジトリでも、宣言が無ければ
+> 受け取った側に許諾が無い。Docker/ZIP を渡す段の前提条件。
+
 
 `/home/shogo/KeepOut`（ユーザー自作、MIT）。`# [LOCK]` / `// [LOCK]` でコードを囲み、構造変更を拒否する。整形・コメント・変数名の変更は無視。
 
@@ -992,7 +1008,7 @@ nix-shell --run 'cd engine && cargo test --release'
 nix-shell --run 'OCCAM_FACTORS="1 10 100 1000" python3 -m unittest tests/test_memory_invariant.py'
 ```
 
-現在 Python 102本 + Rust 11本が通る（2026-10-10〜11 に `test_render.py` 26本、
+現在 Python 104本 + Rust 11本が通る（2026-10-10〜11 に `test_render.py` 26本、
 `test_request.py` 20本、`test_no_duplicated_counts.py` 6本、`test_contraindications.py` 19本を追加）。
 
 ---
