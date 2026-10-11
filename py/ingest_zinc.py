@@ -118,7 +118,14 @@ def run(source, out_dir, limit):
         )
 
     summary = {
+        # The path alone was the whole record of where a library came from,
+        # and it pointed into a session temporary directory that no longer
+        # exists -- so every figure derived from this library had no reachable
+        # provenance. The basename survives a move; the manifest names the
+        # tranche and the URL to fetch it from.
         "source": str(source),
+        "source_name": Path(source).name,
+        "manifest": "data/raw/zinc22/manifest.json",
         "parts": part,
         "rows_written": rows,
         "lines_read": notes["lines"],

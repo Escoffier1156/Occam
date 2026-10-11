@@ -202,6 +202,29 @@ def _is_strict(text, span):
     return bool(spans), spans
 
 
+# A lead-in that ends in a colon governs everything after it: "The screening
+# must satisfy the following criteria: A, B, C" means all three are hard. The
+# clause window below deliberately stops at a comma so a marker cannot leak
+# into the next requirement, which is right for a marker sitting beside one
+# requirement and wrong for one introducing a list. Without this, "primary
+# amine" in that sentence was read as relaxable and the proposer would have
+# offered to loosen it -- contraindication 72, in the shape of
+# contraindication 73.
+LEAD_IN = re.compile(r"^[^:]{0,160}:")
+
+
+def _binds_everything(text):
+    """A strictness marker in a lead-in clause, with the span it occupies."""
+    lead = LEAD_IN.match(text)
+    if not lead:
+        return False, []
+    spans = []
+    for marker in STRICT_MARKERS:
+        for found in re.finditer(marker, lead.group(0)):
+            spans.append(found.span())
+    return bool(spans), spans
+
+
 def _overlaps(span, consumed):
     """Was this span already read as part of something else?"""
     start, end = span
@@ -231,6 +254,11 @@ def parse(prose):
     spec = {"goal": prose.strip(), "library": None, "deliverable": {},
             "requirements": []}
 
+    # Read before the requirements, so each one can be marked strict as it is
+    # added rather than revisited afterwards.
+    all_strict, lead_spans = _binds_everything(text)
+    consumed.extend(lead_spans)
+
     for pattern, kind in FACT_CLAIMS:
         for match in re.finditer(pattern, text):
             consumed.append(match.span())
@@ -259,7 +287,7 @@ def parse(prose):
             if match:
                 strict, markers = _is_strict(text, match.span())
                 spec["requirements"].append({"knob": knob, "setting": setting,
-                                             "strict": strict})
+                                             "strict": strict or all_strict})
                 consumed.append(match.span())
                 consumed.extend(markers)
                 break
@@ -275,7 +303,7 @@ def parse(prose):
                 strict, markers = _is_strict(text, match.span())
                 spec["requirements"].append({"knob": knob,
                                              "setting": body["limits"][value],
-                                             "strict": strict})
+                                             "strict": strict or all_strict})
                 consumed.extend(markers)
             else:
                 notes["refused"].append(
