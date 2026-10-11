@@ -259,3 +259,25 @@ class TheProductPathDoesNotReachTheDemotedModules(unittest.TestCase):
                          Chem.MolToSmarts(knobs.ENTRY_PRIMARY_AMINE))
         self.assertEqual(Chem.MolToSmarts(candidates_mod.BASIC_N),
                          Chem.MolToSmarts(knobs.BASIC_NITROGEN))
+
+
+class TheExactRecountCanBeSkippedButNeverSilently(unittest.TestCase):
+    """One pass over the library per shown specification dominates a short
+    run, so there is a flag. What it must not do is make a faster answer look
+    like the same answer."""
+
+    def test_the_flag_exists(self):
+        source = (ROOT / "py" / "occam.py").read_text()
+        self.assertIn('"--no-exact"', source)
+        self.assertIn("exact=not args.no_exact", source)
+
+    def test_a_skipped_recount_says_the_number_is_an_estimate(self):
+        import render as render_mod
+
+        self.assertIn("sketch estimate",
+                      render_mod.scaffold_phrase({"scaffolds_estimated": 118}))
+
+    def test_an_undecided_specification_says_it_is_undecided(self):
+        import render as render_mod
+
+        self.assertIn("too close", render_mod.state("uncertain"))

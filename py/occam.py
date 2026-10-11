@@ -457,6 +457,11 @@ def main():
     parser.add_argument("--dry-run", action="store_true",
                         help="read the request and stop")
     parser.add_argument("--out-dir", type=Path, default=WORK)
+    parser.add_argument("--no-exact", action="store_true",
+                        help="skip the exact recount of the frontier. One "
+                             "pass over the library per shown specification, "
+                             "so it dominates a short run; the numbers come "
+                             "back as sketch estimates and say so")
     parser.add_argument("--no-measure", action="store_true",
                         help="skip the count of what would have to be "
                              "measured when the set is out of domain")
@@ -659,7 +664,7 @@ def main():
 
     required = spec["deliverable"].get("distinct_scaffolds", 0)
     result = propose_mod.propose(sweep_report, required, spec["library"],
-                                 args.limit or None)
+                                 args.limit or None, exact=not args.no_exact)
     (args.out_dir / "proposal.json").write_text(json.dumps(result, indent=2) + "\n")
 
     print()

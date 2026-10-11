@@ -159,7 +159,7 @@ occam --spec request.json    # 記録・提出用。こちらが正
 
 ### テスト
 
-Python **116本** + Rust **11本**。KeepOut ロック **9箇所**。
+Python **119本** + Rust **11本**。KeepOut ロック **9箇所**。
 
 ```bash
 nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_ingest.py \
@@ -1010,7 +1010,7 @@ nix-shell --run 'cd engine && cargo test --release'
 nix-shell --run 'OCCAM_FACTORS="1 10 100 1000" python3 -m unittest tests/test_memory_invariant.py'
 ```
 
-現在 Python 116本 + Rust 11本が通る（2026-10-10〜11 に `test_render.py` 26本、
+現在 Python 119本 + Rust 11本が通る（2026-10-10〜11 に `test_render.py` 26本、
 `test_request.py` 20本、`test_no_duplicated_counts.py` 6本、`test_contraindications.py` 19本を追加）。
 
 ---
