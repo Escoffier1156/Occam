@@ -42,6 +42,7 @@ import argparse
 import json
 import re
 import sys
+import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -137,18 +138,42 @@ DELIVERABLE = [
     r"(?:top\s+)?(\d[\d,]*)\s+(?:unique\s+|distinct\s+)?candidates?",
 ]
 
-# Libraries, most specific first: the charge slice has to be matchable before
-# the bare library name, or "zinc" swallows it. The slice is named here because
-# leaving it out of the vocabulary is what let it be chosen by whoever typed
-# the download command, with no record and no check -- see py/provenance.py.
+# Libraries, matched first-wins, so order and boundaries both decide the
+# answer. The slice is named here because leaving it out of the vocabulary is
+# what let it be chosen by whoever typed the download command, with no record
+# and no check -- see py/provenance.py.
+#
+# THREE RULES, EACH WRITTEN AFTER GETTING IT WRONG
+#
+#   Most specific first. The +2 slice is tested before the +1 slice, which is
+#   tested before the bare name, because a looser pattern earlier silently
+#   shadows every pattern after it and nothing in the output says so.
+#
+#   Every alternative is bounded. `cation(?:ic)?` with no boundary found
+#   "cationic" inside "dicationic": a request for the 17,775-compound slice
+#   read 636,669 of a different one, completed normally, and answered about
+#   the wrong library.
+#
+#   Lowercase only. parse() lowercases the request before matching, so an
+#   uppercase letter in a pattern can never fire. `\bO\s+slice` and
+#   `\bP\s+slice` were dead from the day they were written, and "ZINC O
+#   slice" -- a spelling the documentation promises -- fell through to the
+#   neutral slice, which is the one the published rule says does not
+#   accumulate.
+#
+# tests/test_request.py checks every spelling docs/prompt_format.md names. An
+# ordered first-wins matcher needs exhaustive cases, not examples.
 LIBRARIES = [
-    (r"\bzinc\b[^.]{0,40}?(?:\+1|cation(?:ic)?|protonated|\bO\s+slice)",
-     "data/work/zinc_O"),
-    (r"(?:\+1|cation(?:ic)?|protonated)[^.]{0,40}?\bzinc\b", "data/work/zinc_O"),
-    (r"\bzinc\b[^.]{0,40}?(?:\+2|dication|multiply\s+charged|\bP\s+slice)",
+    (r"\bzinc\b[^.]{0,40}?(?:\+2|\bdication(?:ic)?\b|\bmultiply\s+charged\b"
+     r"|\bp\s+slice\b)", "data/work/zinc_P"),
+    (r"(?:\+2|\bdication(?:ic)?\b|\bmultiply\s+charged\b)[^.]{0,40}?\bzinc\b",
      "data/work/zinc_P"),
-    (r"\bzinc\b[^.]{0,40}?(?:neutral|\bN\s+slice)", "data/work/zinc"),
-    (r"(?:neutral)[^.]{0,40}?\bzinc\b", "data/work/zinc"),
+    (r"\bzinc\b[^.]{0,40}?(?:\+1|\bcation(?:ic)?\b|\bprotonated\b"
+     r"|\bo\s+slice\b)", "data/work/zinc_O"),
+    (r"(?:\+1|\bcation(?:ic)?\b|\bprotonated\b)[^.]{0,40}?\bzinc\b",
+     "data/work/zinc_O"),
+    (r"\bzinc\b[^.]{0,40}?(?:\bneutral\b|\bn\s+slice\b)", "data/work/zinc"),
+    (r"\bneutral\b[^.]{0,40}?\bzinc\b", "data/work/zinc"),
     (r"\bzinc", "data/work/zinc"),
     (r"\bimi", "data/work/imi_clean.parquet"),
     (r"\bchamp", "data/work/champ.parquet"),
@@ -290,6 +315,12 @@ def parse(prose):
         match = re.search(pattern, text)
         if match:
             spec["library"] = path
+            # First-wins ordering is invisible in the output, so the record
+            # says which rule fired and on what. Without it, a library chosen
+            # by a pattern that should not have matched looks exactly like one
+            # chosen correctly.
+            spec["library_matched"] = {"phrase": match.group(0).strip(),
+                                       "pattern": pattern}
             consumed.append(match.span())
             break
 
@@ -372,6 +403,32 @@ def parse(prose):
 
     notes["unread"] = _unmatched_spans(prose, consumed)
     return spec, notes
+
+
+def read_request():
+    """A request typed at the prompt, ending with a blank line.
+
+    Multi-line because a request is: a library, a deliverable and three
+    conditions do not fit comfortably on one. Ends on a blank line rather
+    than a key combination so that pasting several lines works.
+    """
+    if not sys.stdin.isatty():
+        return sys.stdin.read().strip()
+    print("Request? Type it, then a blank line. Ctrl-C to abandon.")
+    print("What can be asked for: docs/prompt_format.md")
+    lines = []
+    try:
+        while True:
+            line = input("  " if lines else "> ")
+            if not line.strip():
+                if lines:
+                    break
+                continue
+            lines.append(line.strip())
+    except (EOFError, KeyboardInterrupt):
+        print()
+        return ""
+    return " ".join(lines)
 
 
 def stop(reason):
@@ -505,7 +562,13 @@ def main():
     elif args.request:
         spec, notes = parse(args.request)
     else:
-        parser.error("give a request as prose, or --spec a file")
+        # No request on the command line: ask for one. Putting a four-line
+        # request inside shell quotes every time is not how anyone works, and
+        # it is how this was used all day.
+        request = read_request()
+        if not request:
+            parser.error("give a request as prose, or --spec a file")
+        spec, notes = parse(request)
 
     # The library itself is an input. It had no record and no guard once, and
     # the screen it produced reported the opposite of the right answer. It is
@@ -675,7 +738,11 @@ def main():
 
     if not args.yes:
         try:
-            if input("\nrun this? [y/N] ").strip().lower() not in ("y", "yes"):
+            # NFKC before comparing: an IME leaves the full-width 'ｙ', which
+            # is not 'y', and the run stopped on a yes.
+            reply = unicodedata.normalize(
+                "NFKC", input("\nrun this? [y/N] ")).strip().lower()
+            if reply not in ("y", "yes", "はい"):
                 print("stopped.")
                 return 0
         except EOFError:
@@ -755,6 +822,8 @@ def main():
     # used to be gates inside the candidate pipeline, where they were reached
     # only after a list of molecules had been produced. They are verdicts.
     measured_cost = False
+    screen_body = None
+    screen_cost = None
     if not args.no_screenable and result.get("recommended"):
         chosen = result["recommended"]["choices"]
         print()
@@ -768,6 +837,7 @@ def main():
                 print(line)
         else:
             body = screenable_mod.report(survivors)
+            screen_body = body
 
             # Computed before the report is printed so that the count of what
             # would close the verdict appears inside the verdict rather than
@@ -781,6 +851,7 @@ def main():
                     dataset=render_mod.library_phrase(library_check["library"])
                     if library_check else spec["library"])
                 measured_cost = True
+                screen_cost = cost
 
             screenable_mod.show(body, cost)
             (args.out_dir / "screenable.json").write_text(
@@ -788,6 +859,12 @@ def main():
             if cost is not None:
                 (args.out_dir / "what_to_measure.json").write_text(
                     json.dumps(cost, indent=2) + "\n")
+
+    for line in render_mod.answer(
+            spec, result, body=screen_body, cost=screen_cost,
+            library=render_mod.library_phrase(library_check["library"])
+            if library_check else spec.get("library")):
+        print(line)
 
     written = ["request.json", "sweep.json", "proposal.json"]
     if not args.no_screenable:

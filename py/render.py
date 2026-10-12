@@ -266,6 +266,76 @@ def inert_lines(inert):
     return out
 
 
+def answer(spec, result, body=None, cost=None, library=None):
+    """The whole answer, in one block, at the end.
+
+    The run prints 88 lines under seven headings and the verdict is on line
+    34. That is a transcript of the reasoning, and a transcript is what a
+    reader has to work through rather than read. Everything above this block
+    stays -- it is where the numbers come from and it is what makes the answer
+    checkable -- but a person at a prompt gets the three pillars here, in the
+    order they decide in: can it be done, what will it establish, what to do
+    next.
+    """
+    out = ["", "=" * 72, "ANSWER", "=" * 72]
+    r = result.get("recommended") or {}
+    asked = result.get("as_asked")
+
+    out.append("")
+    if r and not r.get("loosened"):
+        out.append(f"  feasible as asked: {scaffold_phrase(r)}, "
+                   f"from {r['survivors']:,} molecules")
+    elif r:
+        out.append(f"  not as asked: {scaffold_phrase(asked)}"
+                   if asked else "  not as asked")
+        out += wrap(f"feasible if loosened: {spec_phrase(r['choices'])} "
+                    f"-> {scaffold_phrase(r)}", indent=2, hanging=4)
+    else:
+        # The ceiling is the number a reader wants most when the answer is
+        # no, and it was being dropped: best_reachable carries it under
+        # whichever key the sweep that produced it used, which is exactly
+        # what scaffold_phrase exists to read.
+        best = result.get("best_reachable")
+        out.append("  not feasible at any registered setting")
+        if best:
+            required = result.get("request", {}).get(
+                "distinct_scaffolds_required")
+            against = (f" against {required:,} required" if required else "")
+            out += wrap(f"the most any of them reaches is "
+                        f"{scaffold_phrase(best)}{against}",
+                        indent=4, hanging=6)
+    if library:
+        out += wrap(f"library: {library}", indent=2, hanging=4)
+
+    if body:
+        out.append("")
+        rank = body.get("rankability", {})
+        app = body.get("applicability", {})
+        out.append(f"  a screen of it could be ordered: "
+                   f"{verdict(rank.get('verdict'))}")
+        out.append(f"  its activity could be predicted: "
+                   f"{verdict(app.get('verdict'))}")
+        control = (app.get("control") or {}).get("verdict")
+        if control:
+            out.append(f"    positive control on that verdict: "
+                       f"{control_verdict(control)}")
+
+    if cost and cost.get("measurable"):
+        out.append("")
+        out += wrap(f"to bring it inside the model's domain: "
+                    f"{cost['compounds_to_measure']:,} compounds measured, "
+                    f"{cost['for_half_the_set']:,} of them for half the set",
+                    indent=2, hanging=4)
+
+    out.append("")
+    out += wrap("No molecules are emitted. What to make of this is the "
+                "chemist's call; the lines above are what was measured and "
+                "the detail above them is where each number came from.",
+                indent=2, hanging=2)
+    out.append("=" * 72)
+    return out
+
+
 def library_phrase(info):
     """The library named as a chemist would name it, not as a path.
 

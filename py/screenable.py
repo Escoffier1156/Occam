@@ -491,9 +491,19 @@ def report(survivors, features=WORK / "imi_fp" / "features.parquet",
         revisions["ranking"] = {
             "problem": f"only {rank.get('distinct_share', 0):.1%} of scores are "
                        f"distinct against a {MIN_DISTINCT_SHARE:.0%} floor",
-            "measured_alternatives": "pass the frontier to "
-                                     "rankable_alternatives() to measure which "
-                                     "looser specification clears the floor",
+            # Named a function, which is a line of this codebase and not an
+            # answer. A reader deciding what to do next needs the action, not
+            # the call that performs it.
+            "measured_alternatives": "a looser specification spreads the "
+                                     "scores further, so one of the "
+                                     "alternatives on the frontier may clear "
+                                     "the floor. Which of them does is "
+                                     "measurable and has not been measured "
+                                     "here",
+            "what_this_means": "the set can still be screened; what cannot be "
+                               "done is to take the top N from it, because "
+                               "the tie-break rather than the model would "
+                               "choose them",
         }
 
     return {

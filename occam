@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# occam -- the entry point docs/prompt_format.md has always named.
+#
+#     occam "256 distinct scaffolds from the cationic ZINC library,
+#            primary amine, rotatable bonds at most 5,
+#            molecular weight strictly under 450"
+#
+#     occam --spec request.json
+#
+# The documentation promised this spelling and nothing provided it, so every
+# example in it was a command that did not exist. It enters the nix shell
+# itself, because the dependencies are pinned there and a request run outside
+# it would be using some other RDKit.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+if [ "${1:-}" = "--help" ] || [ "${1:-}" = "-h" ]; then
+    cat >&2 <<'USAGE'
+usage: occam                       type the request at the prompt
+       occam "<request>"           or give it on the command line
+       occam --spec request.json   the structured form; this is what a record keeps
+
+  --yes             do not ask before reading the library
+  --dry-run         read the request and stop
+  --limit N         stop after N molecules
+  --no-exact        skip the exact recount of the frontier (faster, estimates)
+  --no-screenable   skip the verdicts about what a screen would establish
+  --no-measure      skip the count of what would have to be measured
+  --out-dir DIR     where request.json and the rest are written
+
+What can be asked for is in docs/prompt_format.md. The vocabulary is closed:
+anything outside it stops rather than being guessed at.
+USAGE
+    exit 2
+fi
+
+# Quote every argument so a request keeps its spaces and punctuation.
+quoted=""
+for arg in "$@"; do
+    quoted+=" $(printf '%q' "$arg")"
+done
+
+exec nix-shell "$here/shell.nix" --run "python3 $here/py/occam.py$quoted"

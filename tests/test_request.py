@@ -324,3 +324,100 @@ class ConditionsBelongToOneBarrier(unittest.TestCase):
         nothing, and the eNTRy conditions are what the request brings to it."""
         for path in ("data/work/zinc", "data/work/zinc_O", "data/work/zinc_P"):
             self.assertIsNone(occam_mod.LIBRARY_BARRIER[path])
+
+
+class EveryDocumentedLibraryPhraseSelectsTheRightSlice(unittest.TestCase):
+    """The library selector is the first thing every request touches, and it
+    had two cases under test out of the ten the documentation promises.
+
+    LIBRARIES is an ordered list matched first-wins, so a pattern that is too
+    loose silently shadows every pattern after it. `dicationic ZINC` matched
+    the -O pattern -- `cation(?:ic)?` with no word boundary finds "cationic"
+    inside "dicationic" -- and a request for 17,775 compounds read 636,669 of
+    a different slice instead. Nothing failed; it just answered about the
+    wrong library.
+
+    The phrases below are every one docs/prompt_format.md names. An ordered
+    first-wins matcher needs exhaustive cases, not examples.
+    """
+
+    CASES = [
+        ("cationic ZINC", "data/work/zinc_O"),
+        ("protonated ZINC", "data/work/zinc_O"),
+        ("ZINC O slice", "data/work/zinc_O"),
+        ("the +1 ZINC slice", "data/work/zinc_O"),
+        ("dicationic ZINC", "data/work/zinc_P"),
+        ("ZINC +2 slice", "data/work/zinc_P"),
+        ("multiply charged ZINC", "data/work/zinc_P"),
+        ("ZINC P slice", "data/work/zinc_P"),
+        ("neutral ZINC", "data/work/zinc"),
+        ("ZINC N slice", "data/work/zinc"),
+        ("ZINC", "data/work/zinc"),
+        ("CHAMP", "data/work/champ.parquet"),
+        ("IMI", "data/work/imi_clean.parquet"),
+        ("GramNegAccum", "data/work/gna.parquet"),
+        ("GNA", "data/work/gna.parquet"),
+        ("B3DB", "data/work/B3DB_classification.parquet"),
+        ("blood-brain", "data/work/B3DB_classification.parquet"),
+        ("BBB", "data/work/B3DB_classification.parquet"),
+    ]
+
+    def test_every_phrase_selects_its_documented_slice(self):
+        for phrase, expected in self.CASES:
+            with self.subTest(phrase=phrase):
+                spec, _ = occam_mod.parse(
+                    f"120 distinct scaffolds from the {phrase} library, "
+                    f"primary amine")
+                self.assertEqual(spec["library"], expected,
+                                 f"{phrase!r} selected {spec['library']}")
+
+    def test_a_longer_word_is_not_matched_inside(self):
+        """The failure: `cationic` found inside `dicationic`.
+
+        Checked by running the patterns, not by inspecting them: an earlier
+        version of this test searched the pattern text for bare words and
+        reported `dication` as an unbounded `cation`, which is the same
+        substring mistake it exists to catch.
+        """
+        import re
+        # Only spellings the documentation names. Inventing one here would be
+        # asserting a vocabulary nobody promised.
+        longer = [("dicationic zinc", "cationic", "data/work/zinc_P")]
+        for phrase, shadowed, expected in longer:
+            with self.subTest(phrase=phrase):
+                hits = [path for pattern, path in occam_mod.LIBRARIES
+                        if re.search(pattern, phrase)]
+                self.assertTrue(hits, f"{phrase!r} matched nothing")
+                self.assertEqual(
+                    hits[0], expected,
+                    f"{phrase!r} was taken by the {shadowed!r} rule")
+
+    def test_the_documentation_lists_no_phrase_the_parser_cannot_read(self):
+        """A phrase promised in the documentation and not readable by the
+        parser is worse than one that is absent: a requester uses it and the
+        requirement is silently dropped.
+
+        Checked on the whole phrase. It used to check the first word only, so
+        "the +1 ZINC slice" passed on the strength of "the" appearing
+        somewhere in a Japanese document -- a test that could not fail.
+        """
+        doc = (ROOT / "docs" / "prompt_format.md").read_text().lower()
+        for phrase, _ in self.CASES:
+            # The documentation writes these as the request would, so compare
+            # on the words that carry the meaning rather than on articles.
+            words = [w for w in phrase.lower().split()
+                     if w not in ("the", "a", "an", "library", "set", "slice")]
+            self.assertTrue(words, f"{phrase!r} is all function words")
+            for word in words:
+                self.assertIn(word, doc,
+                              f"{phrase!r} is tested but {word!r} is not in "
+                              f"docs/prompt_format.md")
+
+    def test_which_pattern_matched_is_recorded(self):
+        """First-wins ordering is invisible in the output, so the record has
+        to say which rule fired."""
+        spec, _ = occam_mod.parse(
+            "120 distinct scaffolds from the dicationic ZINC library, "
+            "primary amine")
+        self.assertIn("library_matched", spec,
+                      "nothing records which pattern selected the library")

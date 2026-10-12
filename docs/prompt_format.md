@@ -41,12 +41,13 @@ ZINC22 は tranche を **pH 7.4 の予測プロトン化状態**で分けてい�
 
 | 書き方 | スライス | 件数 | 備考 |
 |---|---|---|---|
-| `cationic ZINC` / `protonated ZINC` / `ZINC O slice` | **-O（+1）** | 636,669 | **推奨。**一級アミンが -N の 12倍 |
-| `ZINC +2 slice` / `dicationic ZINC` | -P（+2以上） | 17,775 | 濃度は最高（62倍）だが小さい。**試運転向き** |
-| `neutral ZINC` / **`ZINC`（既定）** | -N（中性） | 1,000,000 | **矛盾で停止する**（下記） |
+| `cationic ZINC` / `protonated ZINC` / `ZINC O slice` / `+1 ZINC` | **-O（+1）** | 636,669 | **推奨。**一級アミンが -N の 12倍 |
+| `ZINC +2 slice` / `dicationic ZINC` / `multiply charged ZINC` / `ZINC P slice` | -P（+2以上） | 17,775 | 濃度は最高（62倍）だが小さい。**試運転向き** |
+| `neutral ZINC` / `ZINC N slice` / **`ZINC`（既定）** | -N（中性） | 1,000,000 | **矛盾で停止する**（下記） |
 | `CHAMP` | 透過性 | 1,132 | |
 | `IMI` | 活性 | 22,051 | |
 | `GramNegAccum` / `GNA` | 透過性 | 197 | |
+| `B3DB` / `blood-brain` / `BBB` | 血液脳関門 | 7,805 | **screening はできない**（別の障壁） |
 
 ### `ZINC` と書くと `-N` になって止まる
 

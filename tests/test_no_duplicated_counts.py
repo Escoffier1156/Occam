@@ -33,9 +33,13 @@ ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "py"))
 
 # The modules whose strings are printed to a reader. A count hardcoded here is
-# a count that no measurement keeps current.
+# a count that no measurement keeps current, and a function name here is a
+# line of this codebase presented to a reader as an answer. One list: there
+# were two with different contents, so a module was scanned for one defect and
+# not the other depending on which class you read.
 REPORTING = ("occam.py", "screenable.py", "propose.py", "render.py",
-             "feasible.py", "inventory.py", "provenance.py")
+             "what_to_measure.py", "feasible.py", "inventory.py",
+             "provenance.py")
 
 # A number that reads as a count of rows, molecules or records: a thousands
 # separator, or five or more bare digits. Four bare digits are left out because
@@ -142,6 +146,45 @@ class TheCountsThatUsedToBeDuplicated(unittest.TestCase):
         self.assertEqual(
             render_mod.training_set_phrase({"training_set": "CHAMP"}),
             "CHAMP")
+
+
+class NoFunctionNameReachesTheScreen(unittest.TestCase):
+    """A reader deciding what to do next needs the action, not the call that
+    performs it. `rankable_alternatives()` appeared in a verdict's revision,
+    which is a line of this codebase presented as an answer."""
+
+    def test_no_printed_string_names_a_function_call(self):
+        import ast
+        import re
+
+        for name in REPORTING:
+            path = ROOT / "py" / name
+            if not path.exists():
+                continue
+            tree = ast.parse(path.read_text())
+            # A docstring is not printed. render.py's library_phrase() names
+            # provenance.identify() in its own documentation, which is where
+            # that name belongs.
+            docstrings = set()
+            for holder in ast.walk(tree):
+                if isinstance(holder, (ast.Module, ast.FunctionDef,
+                                       ast.AsyncFunctionDef, ast.ClassDef)):
+                    first = (holder.body or [None])[0]
+                    if (isinstance(first, ast.Expr)
+                            and isinstance(first.value, ast.Constant)
+                            and isinstance(first.value.value, str)):
+                        docstrings.add(id(first.value))
+            for node in ast.walk(tree):
+                if not (isinstance(node, ast.Constant)
+                        and isinstance(node.value, str)):
+                    continue
+                if id(node) in docstrings:
+                    continue
+                # A bare identifier followed by () inside a sentence.
+                hit = re.search(r"\b[a-z_][a-z0-9_]{3,}\(\)", node.value)
+                if hit and ".py" not in node.value:
+                    self.fail(f"py/{name}:{node.lineno} prints "
+                              f"{hit.group(0)!r} to a reader")
 
 
 if __name__ == "__main__":

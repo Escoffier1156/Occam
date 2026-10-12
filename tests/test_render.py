@@ -264,3 +264,70 @@ class NoIdentifierReachesTheScreen(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TheAnswerBlockCarriesTheWholeAnswer(unittest.TestCase):
+    """The run prints 88 lines under seven headings with the verdict on line
+    34. The detail stays -- it is where the numbers come from -- but a person
+    at a prompt reads one block, in the order a decision is made in."""
+
+    def _answer(self, result, **kw):
+        return "\n".join(render_mod.answer({}, result, **kw))
+
+    def test_an_infeasible_answer_states_the_ceiling(self):
+        """The number most wanted when the answer is no. It was dropped,
+        because best_reachable carries it under the key the sweep used."""
+        text = self._answer({
+            "request": {"distinct_scaffolds_required": 120},
+            "best_reachable": {"scaffolds_estimated": 39},
+        })
+        self.assertIn("39", text)
+        self.assertIn("120", text)
+        self.assertIn("not feasible", text)
+
+    def test_a_loosened_answer_names_what_was_loosened(self):
+        text = self._answer({
+            "as_asked": {"distinct_scaffolds": 119, "counted_exactly": True,
+                         "survivors": 123},
+            "recommended": {"distinct_scaffolds": 124, "counted_exactly": True,
+                            "survivors": 128, "loosened": {"weight": "mw_under_600"},
+                            "choices": {"nitrogen": "primary_amine",
+                                        "rotatable": "rotatable_le_5",
+                                        "weight": "mw_under_600"}},
+        })
+        self.assertIn("119", text)
+        self.assertIn("124", text)
+        self.assertIn("under 600 Da", text)
+
+    def test_a_feasible_answer_says_so_without_a_substitution(self):
+        text = self._answer({
+            "recommended": {"distinct_scaffolds": 187, "counted_exactly": True,
+                            "survivors": 430, "loosened": {},
+                            "choices": {"nitrogen": "primary_amine"}},
+        })
+        self.assertIn("feasible as asked", text)
+        self.assertIn("187", text)
+        self.assertNotIn("loosened", text)
+
+    def test_the_three_pillars_appear_in_decision_order(self):
+        text = self._answer(
+            {"recommended": {"distinct_scaffolds": 187, "counted_exactly": True,
+                             "survivors": 430, "loosened": {},
+                             "choices": {"nitrogen": "primary_amine"}}},
+            body={"rankability": {"verdict": "not_answerable"},
+                  "applicability": {"verdict": "answerable_but_extrapolating",
+                                    "control": {"verdict": "pass"}}},
+            cost={"measurable": True, "compounds_to_measure": 99,
+                  "for_half_the_set": 15})
+        feasible = text.index("feasible as asked")
+        ordered = text.index("could be ordered")
+        measure = text.index("99 compounds")
+        self.assertLess(feasible, ordered)
+        self.assertLess(ordered, measure)
+
+    def test_the_answer_never_promises_molecules(self):
+        text = self._answer({"recommended": {"distinct_scaffolds": 1,
+                                             "counted_exactly": True,
+                                             "survivors": 1, "loosened": {},
+                                             "choices": {}}})
+        self.assertIn("No molecules are emitted", text)

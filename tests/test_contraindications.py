@@ -105,8 +105,12 @@ class Item47NoSelfMatchingWaitLoop(unittest.TestCase):
         offenders = []
         for path in list(ROOT.rglob("*.py")) + list(ROOT.rglob("*.sh")):
             # data/work holds generated scripts and is not committed.
-            if any(part in (".git", "target", "__pycache__", "work")
-                   for part in path.parts):
+            # `.claude` holds the app's worktrees: copies of this very file,
+            # which the self-exclusion below cannot match because it compares
+            # paths. Contraindication 47 is about the scripts of this
+            # repository, not about a checkout of it sitting inside itself.
+            if any(part in (".git", ".claude", "target", "__pycache__",
+                            "work") for part in path.parts):
                 continue
             # This file states the trap in order to search for it, so its own
             # text matches. Excluding it is not a loophole: a wait loop would
