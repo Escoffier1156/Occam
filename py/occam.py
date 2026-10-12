@@ -39,8 +39,10 @@ Three rules make it safe:
 """
 
 import argparse
+import datetime
 import json
 import re
+import subprocess
 import sys
 import unicodedata
 from pathlib import Path
@@ -201,11 +203,30 @@ LIBRARY_BARRIER = {
 
 # A word ending this way, or named as the object of "inhibitor", is read as a
 # claimed biological target and checked against the evidence rather than used.
-TARGET_SHAPES = [
-    r"\b([a-z]{4,}(?:ase|ases))\b",
+# A NAMED TARGET, AND WHY THE SUFFIX IS NOT ENOUGH ON ITS OWN
+#
+# NAMED_TARGET puts the word in a position that says it is a target: the
+# object of "inhibitor of", the thing a screen is "against", the word before
+# "inhibitor". The position is the vocabulary, and it is closed.
+#
+# SUFFIX_TARGET is the -ase shape. English is full of ordinary nouns ending
+# that way -- purchase, increase, phrase, database, case -- and the exclusion
+# list had grown to exactly two words, `disease` and `release`, which is a
+# record of having been caught by this twice. A third, `purchase`, stopped a
+# run: it was promoted to a target, the screen was abandoned as unanswerable,
+# and the structural part was never evaluated. Extending the list is not a
+# fix; the next ordinary word is not on it either.
+#
+# So a bare -ase word is promoted only when the evidence has a label that
+# mentions it. If it does not, it is reported as a word that looks like a
+# target and was not taken as one, which is checkable, rather than silently
+# dropped or silently promoted.
+NAMED_TARGET = [
     r"\binhibitors?\s+(?:of|for)\s+(?:bacterial\s+|the\s+)?([a-z][a-z\- ]{3,30}?)\b",
     r"\b([a-z][a-z\-]{3,25})\s+inhibitors?\b",
+    r"\b(?:against|targeting|target)\s+(?:the\s+)?([a-z][a-z\-]{3,30})\b",
 ]
+SUFFIX_TARGET = r"\b([a-z]{4,}(?:ase|ases))\b"
 
 # Numbers that assert something about the data rather than request something.
 # Matching these is how a mistaken premise gets reported instead of ignored.
@@ -294,7 +315,8 @@ def _unmatched_spans(text, consumed):
 def parse(prose):
     """Prose to specification. Returns (spec, notes). Never guesses."""
     text = prose.lower()
-    consumed, notes = [], {"dropped_claims": [], "refused": [], "unread": []}
+    consumed, notes = [], {"dropped_claims": [], "refused": [], "unread": [],
+                           "not_taken_as_targets": []}
     spec = {"goal": prose.strip(), "library": None, "deliverable": {},
             "requirements": []}
 
@@ -392,14 +414,26 @@ def parse(prose):
         break
 
     seen = set()
-    for pattern in TARGET_SHAPES:
+    for pattern in NAMED_TARGET:
         for match in re.finditer(pattern, text):
             name = match.group(1).strip()
-            if name in seen or name in ("disease", "release"):
+            if name in seen:
                 continue
             seen.add(name)
             consumed.append(match.span())
             spec["requirements"].append({"target": name})
+
+    # The -ase shape. Recorded as a candidate and not resolved here: deciding
+    # it needs the evidence, reading the evidence takes about a minute, and
+    # parse() is what --dry-run runs to answer immediately. check_targets()
+    # already reads the datasets once, so the decision is made there.
+    for match in re.finditer(SUFFIX_TARGET, text):
+        name = match.group(1).strip()
+        if name in seen:
+            continue
+        seen.add(name)
+        consumed.append(match.span())
+        spec.setdefault("target_candidates", []).append(name)
 
     notes["unread"] = _unmatched_spans(prose, consumed)
     return spec, notes
@@ -448,12 +482,25 @@ def show(spec, notes, library_info=None):
     checking that the request they made is the request that was understood.
     """
     width = 20
+    # Q: a result handed to someone else has to say which version produced it.
+    # The charge knob was retired two days before this was first shown outside.
+    stamp = subprocess.run(["git", "-C", str(ROOT), "describe", "--always",
+                            "--dirty", "--abbrev=10"],
+                           capture_output=True, text=True)
+    version = stamp.stdout.strip() or "not a git checkout"
+    print(f"occam {version} at "
+          f"{datetime.datetime.now().astimezone().isoformat(timespec='seconds')}")
     print("read as:")
     library = (render_mod.library_phrase(library_info) if library_info
                else (spec["library"] or "(not named)"))
     print(f"  {'library':{width}} {library}")
     for key, value in spec["deliverable"].items():
         print(f"  {'deliverable':{width}} {value:,} {key.replace('_', ' ')}")
+        if key == "distinct_scaffolds":
+            # K: the unit the whole verdict is counted in, asked for four
+            # times in one review and answerable from nowhere in the output.
+            print(f"  {'':{width}} counted as Bemis-Murcko frameworks "
+                  f"(RDKit MurckoScaffoldSmiles), one per distinct framework")
     print()
     for requirement in spec["requirements"]:
         if "target" in requirement:
@@ -492,12 +539,26 @@ def show(spec, notes, library_info=None):
 def check_targets(spec):
     """Every named target, against the labels that actually exist."""
     names = [r["target"] for r in spec["requirements"] if "target" in r]
-    if not names:
+    candidates = spec.get("target_candidates") or []
+    if not names and not candidates:
         return []
     datasets = inventory_mod.take(WORK)
     out = []
     for name in names:
         out.append(feasible_mod.label_available(datasets, [name]))
+    # A word that merely ends in -ase becomes a target only if the evidence
+    # has a label mentioning it. `purchase` did not, and promoting it stopped
+    # a run before anything was screened. Ordinary English is full of these
+    # and the exclusion list had reached exactly two words, which is a record
+    # of having been caught twice.
+    for name in candidates:
+        if name in names:
+            continue
+        if inventory_mod.find_label(datasets, [name]):
+            spec["requirements"].append({"target": name})
+            out.append(feasible_mod.label_available(datasets, [name]))
+        else:
+            spec.setdefault("not_taken_as_targets", []).append(name)
     return out
 
 
@@ -558,7 +619,8 @@ def main():
 
     if args.spec:
         spec = json.loads(args.spec.read_text())
-        notes = {"dropped_claims": [], "refused": [], "unread": []}
+        notes = {"dropped_claims": [], "refused": [], "unread": [],
+             "not_taken_as_targets": []}
     elif args.request:
         spec, notes = parse(args.request)
     else:
@@ -585,6 +647,21 @@ def main():
     (args.out_dir / "request.json").write_text(json.dumps(spec, indent=2) + "\n")
 
     target_checks = check_targets(spec)
+    if spec.get("not_taken_as_targets"):
+        print("\nlooks like a target, and was not taken as one:")
+        for name in spec["not_taken_as_targets"]:
+            for line in render_mod.wrap(
+                    f"\"{name}\": it ends in -ase, which is the shape of an "
+                    f"enzyme name, but no label in the evidence mentions it "
+                    f"and nothing in the request puts it where a target goes",
+                    indent=2, hanging=4):
+                print(line)
+            for line in render_mod.wrap(
+                    f"if it is the target, write it as \"an inhibitor of "
+                    f"{name}\". Ordinary English words end this way too, and "
+                    f"one of them stopped a run before anything was screened.",
+                    indent=4, hanging=6):
+                print(line)
     if target_checks:
         print("\ntargets named in the request:")
         for check in target_checks:
@@ -632,10 +709,12 @@ def main():
                 f"about {knobs_mod.APPLIES_TO['barrier']}.", indent=2,
                 hanging=4):
             print(line)
-        named = ("not recorded for this library" if barrier == "unrecorded"
-                 else barrier)
-        for line in render_mod.wrap(f"this library is about {named}.",
-                                    indent=2, hanging=4):
+        # Three statements, chosen in render.barrier_sentence(). Interpolating
+        # the words for an absent record into one template printed "this
+        # library is about not recorded for this library."
+        for line in render_mod.wrap(
+                render_mod.barrier_sentence(spec.get("library"), barrier),
+                indent=2, hanging=4):
             print(line)
         for line in render_mod.wrap(knobs_mod.APPLIES_TO["not"], indent=2,
                                     hanging=4):
@@ -813,6 +892,23 @@ def main():
                   f"{render_mod.reads(knob, setting)}")
             for line in render_mod.wrap(body["source"], indent=4, hanging=6):
                 print(line)
+    # The closest specification that was counted and did not reach. It is not
+    # an alternative, so it does not go under the recommendation, and it is not
+    # held back, so it is not in that list either. It was being counted and
+    # then dropped: "six short" is the figure that decides whether to widen the
+    # library or lower the request, and the recommendation cannot carry it.
+    if result.get("nearest_miss"):
+        m = result["nearest_miss"]
+        print("\nclosest specification that did not reach:")
+        for line in render_mod.wrap(render_mod.spec_phrase(m["choices"]),
+                                    indent=2, hanging=4):
+            print(line)
+        print(f"  {m['survivors']:,} molecules pass, "
+              f"{m['scaffolds_exact']:,} distinct scaffolds, counted exactly "
+              f"- {m['short_by']:,} short of the {required:,} asked for")
+        for line in render_mod.wrap(result["nearest_miss_why"],
+                                    indent=2, hanging=4):
+            print(line)
     if result.get("best_reachable"):
         print("\nwhat would unblock it:")
         for item in result["what_would_unblock"]:

@@ -423,3 +423,309 @@ class Item25AndItem81TwoScopesNeverShareARow(unittest.TestCase):
         get mixed."""
         self.assertIn("distinct scaffolds from", source("propose.py"))
         self.assertIn("is impossible", source("propose.py"))
+
+
+class TheWeakestClaimIsGivenUpFirst(unittest.TestCase):
+    """Found by the first external review of this project.
+
+    Asked for 500 distinct scaffolds, the proposer offered 686 by moving the
+    published rotatable limit from 5 to 9 -- two steps away from a condition
+    Richter 2017 states -- without weighing the specification one step tighter
+    that moved the molecular weight bound this study chose and no paper
+    states. Two faults in one ordering: it could not tell a published setting
+    from an arbitrary one, and its tie-break preferred the largest survivor
+    count, which is the largest overshoot.
+
+    WITHDRAWN: the review and this docstring put the tighter specification at
+    about 520, which would have made it the answer. Counted exactly it holds
+    494 -- six short of the request -- so nothing reportable was being hidden
+    by the ordering. The ordering fault was real and that figure was not. 494
+    is now reported as the nearest miss, which is how a wrong estimate gets
+    corrected instead of repeated.
+    """
+
+    BASELINE = {"nitrogen": "primary_amine", "rotatable": "rotatable_le_5",
+                "weight": "mw_under_450"}
+
+    def _row(self, choices, scaffolds, survivors):
+        import propose as propose_mod
+        return propose_mod.classify(
+            {"specification": " + ".join(choices[k] for k in sorted(choices)),
+             "choices": choices, "survivors": survivors,
+             "distinct_scaffolds_estimated": scaffolds,
+             "provenance": {"weakest": "published", "per_knob": {}}},
+            500, self.BASELINE)
+
+    def test_a_bound_this_study_chose_is_given_up_before_a_published_one(self):
+        import propose as propose_mod
+
+        moved_published = dict(self.BASELINE, rotatable="rotatable_le_9")
+        moved_ours = dict(self.BASELINE, rotatable="rotatable_le_7",
+                          weight="mw_under_600")
+        report = {"summary": {"limit": None}, "baseline": self.BASELINE,
+                  "specifications": [
+                      {"specification": "rb9", "choices": moved_published,
+                       "survivors": 2000, "distinct_scaffolds_estimated": 686,
+                       "provenance": {"weakest": "relaxation", "per_knob": {}}},
+                      # Both clearly above the uncertain band, so this test
+                      # isolates the ordering: a row inside the band is
+                      # resolved by the exact pass before it is ranked, which
+                      # needs a library and is covered by the end-to-end run.
+                      {"specification": "rb7+mw600", "choices": moved_ours,
+                       "survivors": 1300, "distinct_scaffolds_estimated": 560,
+                       "provenance": {"weakest": "relaxation", "per_knob": {}}},
+                  ]}
+        out = propose_mod.propose(report, 500)
+        self.assertEqual(out["recommended"]["specification"], "rb7+mw600",
+                         "the published rotatable limit was given up while a "
+                         "bound this study chose was still available")
+
+    def test_the_closest_specification_wins_not_the_largest(self):
+        import propose as propose_mod
+
+        a = dict(self.BASELINE, rotatable="rotatable_le_7")
+        b = dict(self.BASELINE, weight="mw_under_600")
+        report = {"summary": {"limit": None}, "baseline": self.BASELINE,
+                  "specifications": [
+                      {"specification": "far", "choices": a, "survivors": 9000,
+                       "distinct_scaffolds_estimated": 5000,
+                       "provenance": {"weakest": "relaxation", "per_knob": {}}},
+                      {"specification": "near", "choices": b, "survivors": 600,
+                       "distinct_scaffolds_estimated": 560,
+                       "provenance": {"weakest": "published", "per_knob": {}}},
+                  ]}
+        out = propose_mod.propose(report, 500)
+        self.assertEqual(out["recommended"]["specification"], "near",
+                         "the largest overshoot was preferred")
+
+    def test_a_specification_short_of_the_request_sorts_last(self):
+        """overshoot() returns infinity for a specification that does not
+        reach the request, so a near miss can never be preferred to something
+        that meets it. 499 against 500 is inside the sketch's band and is
+        decided by the exact pass, not here; this checks the ordering."""
+        import propose as propose_mod
+
+        short = self._row(dict(self.BASELINE, rotatable="rotatable_le_7"),
+                          300, 9)
+        meets = self._row(dict(self.BASELINE, weight="mw_under_600"), 700, 1)
+        self.assertEqual(short["state_by_sketch"], "infeasible")
+        self.assertEqual(meets["state_by_sketch"], "feasible")
+
+
+class ASampleCanRefuseASetAndCannotClearOne(unittest.TestCase):
+    """Found by re-running the six prompts after the first review's fixes.
+
+    The distinct-score share rises as fewer molecules are measured, so the
+    sampled figure is an upper bound on what the whole set would give. The
+    refusal therefore carries from a sample and the pass does not. The old
+    rule used one licence for both directions, and of six runs the single
+    specification whose survivor set exceeded the sample was the only one
+    reported rankable: 0.5967 on 1,200 of 1,820, against 0.4648 on all 1,820.
+    """
+
+    def test_a_clearing_sample_does_not_clear_the_set(self):
+        import screenable as sc
+        self.assertEqual(
+            sc.rank_verdict(0.5967, 0.005, sampled=True),
+            "not_settled_at_this_sample",
+            "a share measured on part of the set was reported as a pass")
+
+    def test_a_clearing_full_measurement_does_clear_the_set(self):
+        import screenable as sc
+        self.assertEqual(sc.rank_verdict(0.5967, 0.005, sampled=False),
+                         "answerable")
+
+    def test_a_failing_sample_refuses_the_set(self):
+        """The direction the module was built on: a sample below the floor
+        puts the whole set below it, so the refusal needs no further rows."""
+        import screenable as sc
+        for sampled in (True, False):
+            self.assertEqual(sc.rank_verdict(0.4648, 0.005, sampled=sampled),
+                             "not_answerable")
+
+    def test_the_tie_ceiling_still_refuses_a_clearing_share(self):
+        import screenable as sc
+        self.assertEqual(
+            sc.rank_verdict(0.90, sc.MAX_TIE_SHARE + 0.01, sampled=False),
+            "not_answerable",
+            "one value held most of the set and the order was allowed")
+
+    def test_every_verdict_this_rule_returns_has_a_phrase(self):
+        """An unmapped verdict degrades to the key with its underscores
+        stripped, which is a record shape on the screen."""
+        import render as render_mod
+        import screenable as sc
+
+        seen = {sc.rank_verdict(d, t, s)
+                for d in (0.2, 0.4648, 0.5967, 0.99)
+                for t in (0.001, 0.5)
+                for s in (True, False)}
+        for value in seen:
+            self.assertIn(value, render_mod.VERDICT, f"{value} has no phrase")
+
+    def test_a_sampled_verdict_discloses_what_it_rests_on(self):
+        """Monotonicity was declared measured and not proven, so the places
+        relying on it say so. Both directions rely on it when sampled."""
+        text = source("screenable.py")
+        self.assertIn("not proven", text)
+        self.assertRegex(text, r'"rests_on"')
+
+    def test_the_floor_says_it_was_declared_and_not_derived(self):
+        """Asked for the 50% floor's basis on the first day; it has none. The
+        calibration curves explain why the share needs a floor, not why the
+        floor is at 0.50."""
+        import screenable as sc
+        self.assertIn("declared, not derived", sc.FLOOR_BASIS)
+
+    def test_the_retracted_sample_count_is_not_left_in_dead_code(self):
+        """`rankable_alternatives()` defaulted to size=400 -- the count this
+        module retracted -- and nothing called it. Dead code holding a
+        retracted number is how the retraction gets undone."""
+        text = source("screenable.py")
+        self.assertNotIn("def rankable_alternatives", text)
+        # Read the defaults, not the file. The note recording the removal
+        # quotes `size=400`, so a substring search finds the prose that says
+        # the number is gone and calls it the number coming back. The same
+        # mistake a boundary check in this suite already made once.
+        tree = ast.parse(text)
+        for node in ast.walk(tree):
+            if not isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                continue
+            names = [a.arg for a in node.args.args][-len(node.args.defaults):] \
+                if node.args.defaults else []
+            for name, default in zip(names, node.args.defaults):
+                if name != "size":
+                    continue
+                self.assertNotEqual(
+                    getattr(default, "value", None), 400,
+                    f"{node.name}() defaults its sample to the retracted 400")
+
+
+class TheNearestMissReachesTheScreen(unittest.TestCase):
+    """Asked for 500: the frontier offered 686 and said nothing about the
+    specification counted exactly at 494, six short and two steps tighter. A
+    reviewer working from an estimate of 520 could not retract it, because the
+    measured 494 existed only in a count that was taken and then discarded.
+    `frontier` holds feasible rows, so it had nowhere to go.
+    """
+
+    BASELINE = {"nitrogen": "primary_amine", "rotatable": "rotatable_le_5",
+                "weight": "mw_under_450"}
+
+    def _proposal(self):
+        import propose as propose_mod
+        far = dict(self.BASELINE, rotatable="rotatable_le_9")
+        near = dict(self.BASELINE, rotatable="rotatable_le_7",
+                    weight="mw_under_600")
+        report = {"summary": {"limit": None}, "baseline": self.BASELINE,
+                  "specifications": [
+                      {"specification": "far", "choices": far,
+                       "survivors": 1820, "distinct_scaffolds_estimated": 686,
+                       "provenance": {"weakest": "relaxation",
+                                      "per_knob": {}}},
+                      {"specification": "near", "choices": near,
+                       "survivors": 1292, "distinct_scaffolds_estimated": 494,
+                       "provenance": {"weakest": "relaxation",
+                                      "per_knob": {}}},
+                  ]}
+        # exact=False: the point is the reporting, not the second pass. The
+        # near row is given an exact count directly, which is the state the
+        # exact pass leaves it in.
+        out = propose_mod.propose(report, 500, exact=False)
+        return out
+
+    def test_a_row_counted_exactly_and_short_is_reported(self):
+        import propose as propose_mod
+        rows = [{"specification": "near",
+                 "choices": dict(self.BASELINE, rotatable="rotatable_le_7"),
+                 "survivors": 1292, "distinct_scaffolds_estimated": 499,
+                 "provenance": {"weakest": "relaxation", "per_knob": {}}},
+                {"specification": "far",
+                 "choices": dict(self.BASELINE, rotatable="rotatable_le_9"),
+                 "survivors": 1820, "distinct_scaffolds_estimated": 686,
+                 "provenance": {"weakest": "relaxation", "per_knob": {}}}]
+        report = {"summary": {"limit": None}, "baseline": self.BASELINE,
+                  "specifications": rows}
+        out = propose_mod.propose(report, 500, exact=False)
+        # Without the library the near row stays uncertain and is held back,
+        # which is the other half of the same rule.
+        self.assertTrue(out["held_back"], "an unplaced row vanished")
+        self.assertIsNone(out["nearest_miss"],
+                          "a sketch estimate was printed as a measured miss")
+
+    def test_a_sketch_estimate_is_never_printed_as_a_near_miss(self):
+        """499 against 500 is inside the sketch's own error bar. Reporting it
+        as "one short" would be a guess with a decimal point on it."""
+        out = self._proposal()
+        self.assertIsNone(out["nearest_miss"])
+
+    def test_the_answer_block_carries_the_miss(self):
+        import render as render_mod
+        text = "\n".join(render_mod.answer(
+            {"deliverable": {"distinct_scaffolds": 500}},
+            {"request": {"distinct_scaffolds_required": 500},
+             "recommended": {"distinct_scaffolds": 686, "survivors": 1820,
+                             "counted_exactly": True,
+                             "loosened": {"rotatable": "rotatable_le_9"},
+                             "choices": {"rotatable": "rotatable_le_9"}},
+             "nearest_miss": {"specification": "near",
+                              "choices": {"rotatable": "rotatable_le_7"},
+                              "scaffolds_exact": 494, "short_by": 6,
+                              "survivors": 1292, "steps_from_baseline": 1,
+                              "loosened": {}, "provenance": {}}}))
+        self.assertIn("494", text)
+        self.assertIn("6 short", text)
+
+    def test_the_withdrawn_520_is_not_still_asserted(self):
+        """The ordering note said a specification reaching about 520 was
+        available. It was counted at 494. A number known to be wrong is
+        withdrawn in place, not left standing."""
+        text = source("propose.py")
+        self.assertIn("494", text)
+        self.assertIn("withdrawn", text)
+
+
+class EveryBranchOfTheBarrierSentenceIsGrammatical(unittest.TestCase):
+    """A template with a noun swapped into it printed "this library is about
+    not recorded for this library." when no barrier was on file, and read the
+    same way when no library had been named at all. A hole that has to be
+    grammatical under every value it takes is a branch that is missing.
+
+    The sentences are asserted, not the source. A search for the broken phrase
+    finds the comment recording its removal and calls that the defect coming
+    back -- the same mistake the sample-count check in this file made.
+    """
+
+    def test_a_recorded_barrier_is_named(self):
+        import render as render_mod
+        self.assertEqual(
+            render_mod.barrier_sentence("data/work/zinc_P",
+                                        "the Gram-negative outer membrane"),
+            "this library is about the Gram-negative outer membrane.")
+
+    def test_an_unrecorded_barrier_does_not_become_the_subject(self):
+        import render as render_mod
+        for missing in ("unrecorded", None):
+            said = render_mod.barrier_sentence("data/work/zinc_P", missing)
+            self.assertEqual(
+                said, "which barrier this library is about is not recorded.")
+            self.assertNotIn("is about not recorded", said)
+
+    def test_no_library_is_not_described_as_a_library(self):
+        import render as render_mod
+        said = render_mod.barrier_sentence(None, "unrecorded")
+        self.assertIn("no library was named", said)
+        self.assertNotIn("this library is about", said)
+
+    def test_every_branch_ends_in_one_full_stop(self):
+        """Three sentences, each a sentence."""
+        import render as render_mod
+        for library, barrier in (("x", "a barrier"), ("x", "unrecorded"),
+                                 (None, "unrecorded"), (None, None)):
+            said = render_mod.barrier_sentence(library, barrier)
+            self.assertTrue(said.endswith("."), said)
+            self.assertEqual(said.count("."), 1, said)
+
+    def test_the_call_site_no_longer_interpolates(self):
+        self.assertNotIn('f"this library is about {named}."',
+                         source("occam.py"))

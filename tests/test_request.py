@@ -421,3 +421,74 @@ class EveryDocumentedLibraryPhraseSelectsTheRightSlice(unittest.TestCase):
             "primary amine")
         self.assertIn("library_matched", spec,
                       "nothing records which pattern selected the library")
+
+
+class AnOrdinaryWordIsNotATarget(unittest.TestCase):
+    """Found by the first external review. `top 50 to purchase` promoted
+    `purchase` to a named target, the screen was abandoned as unanswerable,
+    and the structural part was never evaluated.
+
+    The -ase shape is the whole of what made it a target. The exclusion list
+    held exactly two words, `disease` and `release`, which is a record of
+    having been caught twice already; extending it does not help, because the
+    next ordinary English word is not on it either."""
+
+    def test_an_ordinary_word_ending_in_ase_is_not_promoted(self):
+        # Words the -ase pattern actually catches. It needs four characters
+        # before the suffix, so `phrase` and `lipase` are outside it either
+        # way -- which also means the pattern misses real short enzyme names.
+        for word in ("purchase", "increase", "database", "showcase"):
+            with self.subTest(word=word):
+                spec, notes = occam_mod.parse(
+                    f"120 distinct scaffolds from the cationic ZINC library, "
+                    f"primary amine, and give me the top 50 to {word}")
+                targets = [r["target"] for r in spec["requirements"]
+                           if "target" in r]
+                self.assertNotIn(word, targets)
+                self.assertIn(word, spec.get("target_candidates", []))
+
+    def test_it_is_recorded_as_a_candidate_rather_than_silently_dropped(self):
+        """parse() records it; check_targets() decides, because deciding needs
+        the evidence and reading the evidence takes about a minute, which
+        --dry-run must not pay."""
+        spec, _ = occam_mod.parse(
+            "120 distinct scaffolds from the cationic ZINC library, "
+            "primary amine, and give me the top 50 to purchase")
+        self.assertIn("purchase", spec.get("target_candidates", []))
+
+    def test_reading_a_request_does_not_read_the_datasets(self):
+        """It did, once per request, and a --dry-run that promises to answer
+        immediately took a minute."""
+        import time
+
+        started = time.monotonic()
+        occam_mod.parse("120 distinct scaffolds from the cationic ZINC "
+                        "library, primary amine, top 50 to purchase")
+        self.assertLess(time.monotonic() - started, 5.0,
+                        "parse() is reading the evidence")
+
+    def test_a_word_in_a_target_position_is_still_read(self):
+        """The case this exists for: a target with no label anywhere, which
+        has to reach the verdict that says so."""
+        for phrase in ("an inhibitor of transglycosylase",
+                       "a transglycosylase inhibitor",
+                       "against transglycosylase"):
+            with self.subTest(phrase=phrase):
+                spec, _ = occam_mod.parse(
+                    f"120 distinct scaffolds from the cationic ZINC library, "
+                    f"primary amine, {phrase}")
+                targets = [r["target"] for r in spec["requirements"]
+                           if "target" in r]
+                self.assertTrue(
+                    any("transglycosylase" in t for t in targets),
+                    f"{phrase!r} did not name a target")
+
+    def test_the_structural_part_still_runs(self):
+        """What the bug cost: the run stopped before screening anything."""
+        spec, _ = occam_mod.parse(
+            "120 distinct scaffolds from the cationic ZINC library, "
+            "primary amine, rotatable bonds at most 5, "
+            "and give me the top 50 to purchase")
+        knobs = {r["knob"] for r in spec["requirements"] if "knob" in r}
+        self.assertEqual(knobs, {"nitrogen", "rotatable"})
+        self.assertEqual(spec["library"], "data/work/zinc_O")

@@ -151,6 +151,14 @@ def requirement_lines(knob, setting, strict, width=20):
         out += wrap(cite, indent=left)
     if knob in CAUTION:
         out += wrap(f"note: {CAUTION[knob]}", indent=left, hanging=left + 6)
+    # N: the output names the first and third eNTRy conditions. Someone
+    # reading only the output cannot tell that the second one is missing, and
+    # naming two of three implies the third was applied.
+    if cite and "eNTRy" in cite:
+        out += wrap("the second eNTRy condition, globularity at most 0.25, is "
+                    "not evaluated here: it needs a 3D conformer and nothing "
+                    "in this pipeline generates one", indent=left,
+                    hanging=left + 2)
     return out
 
 
@@ -166,6 +174,11 @@ VERDICT = {
         "can be answered only by extrapolating past the training set",
     "not_answerable": "cannot be answered",
     "not_measurable": "could not be measured",
+    # The share that decides this verdict rises as fewer molecules are
+    # measured, so a sample can put a set below the floor but cannot put one
+    # above it. Neither "can" nor "cannot" is the honest word for that: the
+    # measurement did not reach.
+    "not_settled_at_this_sample": "not settled by what was measured",
 }
 
 
@@ -194,6 +207,44 @@ def provenance(value):
             tail = str(value)[len(key):].strip()
             return f"{phrase} {tail}" if tail else phrase
     return str(value).replace("_", " ")
+
+
+def barrier_sentence(library, barrier):
+    """Which barrier the library is about, as one of three statements.
+
+    Not one sentence with a noun swapped into it. Substituting the words for
+    an absent record produced "this library is about not recorded for this
+    library.", and the no-library case read the same way while there was no
+    library to be about. A hole that has to be grammatical under every value
+    it can take is a branch that has not been written.
+
+    Here rather than at the call site so the three readings can be checked
+    without running a screen. The defect was visible by reading and was not
+    read for several runs.
+    """
+    if not library:
+        return ("no library was named, so there is nothing here for these "
+                "conditions to be checked against.")
+    if barrier in (None, "unrecorded"):
+        return "which barrier this library is about is not recorded."
+    return f"this library is about {barrier}."
+
+
+def cannot_say(what, why, instead=None):
+    """One form for everything this tool declines to claim.
+
+    Saying what a number cannot do is the product. Scattering that across
+    sentences written one at a time is how some of them ended up not being
+    said at all -- a passing verdict printed no figure, and a count measured
+    on a sample and a count measured on everything were put in the same table.
+
+    `what` is the claim not being made, `why` is the reason in one clause, and
+    `instead` is what the number does support, where it supports something.
+    """
+    out = [f"this does not say {what}: {why}"]
+    if instead:
+        out.append(f"what it does say: {instead}")
+    return out
 
 
 def spec_phrase(choices):
@@ -239,8 +290,13 @@ def scaffold_phrase(row):
     second_pass = (row.get("exact") or {}).get("scaffolds_exact")
     if second_pass is not None:
         return f"{second_pass:,} distinct scaffolds, counted exactly"
+    # L: the same specification reads "187, counted exactly" in one run and
+    # "about 187 (sketch estimate)" in another, because the exact pass is only
+    # spent where the verdict needs it. Reading the two side by side, that is
+    # a contradiction unless the reason is attached.
     return (f"about {row['scaffolds_estimated']:,} distinct scaffolds "
-            f"(sketch estimate)")
+            f"(sketch estimate; counted exactly only where the verdict turns "
+            f"on it)")
 
 
 def inert_lines(inert):
@@ -304,6 +360,15 @@ def answer(spec, result, body=None, cost=None, library=None):
             out += wrap(f"the most any of them reaches is "
                         f"{scaffold_phrase(best)}{against}",
                         indent=4, hanging=6)
+    # Six short of what was asked, two steps tighter: the one line that says
+    # whether to widen the library or lower the request. It belongs beside the
+    # recommendation, not only in the detail above, because a reader who stops
+    # at this block is the reader deciding.
+    miss = result.get("nearest_miss")
+    if miss:
+        out += wrap(f"closest that did not reach: {spec_phrase(miss['choices'])} "
+                    f"-> {miss['scaffolds_exact']:,} distinct scaffolds, "
+                    f"{miss['short_by']:,} short", indent=2, hanging=4)
     if library:
         out += wrap(f"library: {library}", indent=2, hanging=4)
 

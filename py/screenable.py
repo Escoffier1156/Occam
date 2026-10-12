@@ -21,13 +21,20 @@ Both run on a sample, which is said in the output. Deciding that a model cannot
 order a set does not need every row: a thousand rows showing 47% distinct
 settles it, and fingerprinting four thousand took twelve minutes.
 
+That licence is one-directional, and this sentence used to be read as though it
+went both ways. The distinct share rises as fewer molecules are measured, so a
+sample can put a set below the floor -- the whole set will be lower still --
+and cannot put one above it. A sampled figure that clears the floor settles
+nothing, and rankability() now says so instead of reporting a pass. The
+asymmetry is written out at the verdict, with what it rests on.
+
 Each verdict that comes back negative carries a revision: what to put in the
 request instead so that the same question, or the nearest question the evidence
 can answer, becomes answerable. The revisions are measured here and not
 invented -- a target with no label is answered by naming the resolution the
-evidence does have, an unrankable set by measuring which looser specification
-clears the floor, an extrapolating set by measuring which training set it is
-actually nearest to. Nothing proposes chemistry.
+evidence does have, an unsettled ranking by measuring the rest of the set, an
+extrapolating set by measuring which training set it is actually nearest to.
+Nothing proposes chemistry.
 
 A third thing is reported rather than measured: which label the activity model
 was fitted on. The IMI-COMBINE data carries four organism classes, and the
@@ -64,8 +71,51 @@ ENGINE_FP = ROOT / "engine" / "target-fp" / "release" / "engine"
 
 # Declared before any of this was measured, and the same numbers the candidate
 # pipeline used as gates.
+#
+# WHERE 50% COMES FROM: NOWHERE PUBLISHED. IT WAS CHOSEN.
+#
+# Asked for its basis on the first day and it did not have one. It still does
+# not. No paper states a distinct-score share below which a ranking stops
+# meaning anything, and none was found. The reasoning behind the number is
+# only this: at half the scores duplicated, at least half of any top N is
+# placed by whatever breaks the tie, and calling that output "the highest
+# scoring N" is no longer a true description. That argues for a floor
+# somewhere in the middle of the range. It does not single out 0.50 over 0.45
+# or 0.55.
+#
+# What the two calibration curves below settled is narrower, and it is not the
+# floor's justification: they show that the SHARE moves with how many
+# molecules were measured, which is why a sampled figure cannot clear the
+# floor (see the asymmetry in rankability()). A threshold crossing a
+# sample-dependent statistic is a declared convention, and the output says so
+# rather than implying a derivation.
+FLOOR_BASIS = ("declared, not derived: no published source states a "
+               "distinct-share floor. The reasoning is that at half the "
+               "scores duplicated, half of any top N is placed by the "
+               "tie-break rather than by the model, which argues for a floor "
+               "near the middle of the range and does not single out this "
+               "value over 0.45 or 0.55. Read a verdict near the floor as "
+               "near a convention")
 MIN_DISTINCT_SHARE = 0.50
 MAX_TIE_SHARE = 0.05
+# WHY THE DISTINCT SHARE IS NOT COMPARABLE BETWEEN SPECIFICATIONS
+#
+# It is a share: draw fewer molecules from the same distribution and
+# collisions get rarer, so the figure rises with nothing about the model
+# having changed. Measured at 1,200 of 1,820 for one specification and at 430
+# of 430 for another, the two are not the same measurement -- and the only
+# specification that cleared the floor was the only one that had been sampled.
+#
+# Fixing a common sample size was tried and dropped. The size that made the
+# runs comparable was chosen to fit the smallest of them, which is no basis
+# for a floor, and moving every measurement onto it would have raised every
+# share at once: the tool would have stopped saying "cannot be ordered", which
+# is the thing it is for.
+#
+# So the figure is reported with the number it was measured on, and with the
+# statement that it does not compare across specifications. A tool whose
+# product is saying what cannot be concluded can say that about its own
+# numbers.
 # The applicability-domain threshold. Not derived here: nearest-neighbour
 # Tanimoto cut-offs in the 0.4 to 0.6 range are the common practice, and 0.4 is
 # the bottom of that band, chosen so the verdict errs towards saying a set is
@@ -182,6 +232,47 @@ def _infer_from_counts(record, source):
     return matches[0] if len(matches) == 1 else None
 
 
+def rank_verdict(distinct_share, top_share, sampled):
+    """A SAMPLE CAN REFUSE A SET AND CANNOT CLEAR ONE.
+
+    The distinct share rises as fewer molecules are measured: collisions get
+    rarer when there are fewer pairs to collide. Measured on two independent
+    sets, every step down in count raised it --
+
+        430 survivors:    n=100 0.780  n=200 0.675  n=400 0.4975  n=430 0.486
+      1,820 survivors:  n=1200 0.5967  n=1500 0.5253  n=1820 0.4648
+
+    -- so a sampled figure behaves as an UPPER BOUND on the figure the whole
+    set would give. That makes the two directions unequal:
+
+      below the floor on a sample -> the full set is also below -> the refusal
+        can be stated from the sample. This is what the module was built on:
+        deciding that a model CANNOT order a set does not need every row.
+
+      above the floor on a sample -> the full set may be below it, and here
+        was: 1,200 of 1,820 gave 0.5967 and passed, and all 1,820 gave 0.4648
+        and did not. The pass was the sample, not the model.
+
+    The old code took the docstring's licence for the first case and applied
+    it to the second. Of six runs, the one specification whose survivor set
+    was larger than the sample was the only one reported rankable.
+
+    Both directions lean on the bound holding, which is OBSERVED IN TWO SETS
+    AND NOT PROVEN, so a sampled verdict says so either way. The risks are not
+    symmetric -- claiming an order exists is worse than denying one that does
+    -- but neither branch is assumption-free, and declining to call the
+    monotonicity a theorem means disclosing where it is being relied on.
+
+    Separated from rankability() so the rule can be tested without a model, a
+    library and twelve minutes of fingerprinting. It is the whole of the
+    decision; rankability() measures the two shares and hands them here.
+    """
+    clears = distinct_share >= MIN_DISTINCT_SHARE and top_share <= MAX_TIE_SHARE
+    if not clears:
+        return "not_answerable"
+    return "not_settled_at_this_sample" if sampled else "answerable"
+
+
 def sample_survivors(survivors, size=SAMPLE, seed=SAMPLE_SEED):
     if len(survivors) <= size:
         return list(survivors), len(survivors)
@@ -190,7 +281,11 @@ def sample_survivors(survivors, size=SAMPLE, seed=SAMPLE_SEED):
 
 def rankability(survivors, features, epochs=10, learning_rate=0.5,
                 size=SAMPLE):
-    """Can the activity model put this set in an order?"""
+    """Can the activity model put this set in an order?
+
+    The verdict holds for this set at this size. It does not compare with
+    another specification's, and the output says so.
+    """
     chosen, total = sample_survivors(survivors, size)
     if len(chosen) < 50:
         return {"verdict": "not_measurable",
@@ -247,26 +342,62 @@ def rankability(survivors, features, epochs=10, learning_rate=0.5,
     distinct = len(counts) / len(logits)
     top_value, top_count = counts.most_common(1)[0]
     ties = 1.0 - distinct
-    usable = distinct >= MIN_DISTINCT_SHARE and (top_count / len(logits)) <= MAX_TIE_SHARE
-    return {
-        "verdict": "answerable" if usable else "not_answerable",
+    sampled = len(logits) < total
+    verdict = rank_verdict(distinct, top_count / len(logits), sampled)
+
+    if verdict == "not_settled_at_this_sample":
+        means = render_mod.cannot_say(
+            "whether the model can order this set",
+            f"{distinct:.1%} of scores are distinct, which clears the "
+            f"{MIN_DISTINCT_SHARE:.0%} floor, but it was measured on "
+            f"{len(logits):,} of {total:,} survivors and this share falls as "
+            f"more are measured. Calibrated on two sets, every step up in "
+            f"count lowered it, and on one of them a figure above this floor "
+            f"crossed below it before the whole set had been read",
+            f"the floor is not cleared by anything measured here. Measuring "
+            f"all {total:,} would settle it")
+    elif verdict == "answerable":
+        means = [f"the model can order this set: {distinct:.1%} of scores are "
+                 f"distinct against a {MIN_DISTINCT_SHARE:.0%} floor declared "
+                 f"before the run, measured on all {total:,} survivors"]
+    else:
+        means = [f"the model cannot order this set: {distinct:.1%} of scores "
+                 f"are distinct against a {MIN_DISTINCT_SHARE:.0%} floor "
+                 f"declared before the run, measured on {len(logits):,} "
+                 f"molecules. A top N drawn from it would be settled by the "
+                 f"tie-break, not by the model."]
+
+    out = {
+        "verdict": verdict,
         "sampled": len(logits),
         "of_survivors": total,
+        "measured_every_survivor": not sampled,
         "distinct_share": round(distinct, 4),
         "tie_share": round(ties, 4),
         "most_common_value": round(top_value, 6),
         "most_common_count": top_count,
         "floor_distinct": MIN_DISTINCT_SHARE,
+        "floor_basis": FLOOR_BASIS,
         "ceiling_single_value": MAX_TIE_SHARE,
         "logit_range": [round(min(logits), 4), round(max(logits), 4)],
         "fitted_on": str(features),
-        "means": ("the model can order this set"
-                  if usable else
-                  f"the model cannot order this set: {distinct:.1%} of scores are "
-                  f"distinct against a {MIN_DISTINCT_SHARE:.0%} floor declared "
-                  f"before the run. A top N drawn from it would be settled by "
-                  f"the tie-break, not by the model."),
+        # The numbers are in the sentence whichever way the verdict went. A
+        # passing verdict used to say only "the model can order this set",
+        # which is the one a reader cannot check: 50.3% and 71% are not the
+        # same answer, and the measurement that exposed the sampling fault
+        # above was only visible because a failing verdict printed its share.
+        "not_comparable": "this share moves with the number measured, so it "
+                          "does not compare with another specification's "
+                          "unless both were measured on the same count",
+        # Joined for the record; the screen prints the lines.
+        "means": " ".join(means),
+        "means_lines": means,
     }
+    if sampled:
+        out["rests_on"] = ("sampled values behaving as an upper bound on the "
+                           "full-set value, observed in 2 sets, not proven. "
+                           "Measuring every survivor removes the assumption")
+    return out
 
 
 def applicability(survivors, training_smiles, size=SAMPLE):
@@ -306,13 +437,22 @@ def applicability(survivors, training_smiles, size=SAMPLE):
                             "are common applicability-domain practice; 0.4 is "
                             "the lenient end of that band",
         "control": CONTROLS["tanimoto_pipeline"],
+        # "every part of this set" was printed beside a maximum of 0.457
+        # against a threshold of 0.4, which the same line disproves. The
+        # branch read the median and the sentence spoke about every molecule.
+        # It now says what was measured: how much of the set is outside, and
+        # whether any of it is not.
         "means": ("the set overlaps the training structures at the declared "
                   "threshold"
                   if median >= EXTRAPOLATION_BELOW else
-                  f"every part of this set sits outside the structures the model "
-                  f"was fitted on (median {median:.3f}, max {max(nearest):.3f} "
-                  f"against a {EXTRAPOLATION_BELOW} threshold). An order can be "
-                  f"produced; its meaning is not established."),
+                  (f"{1 - inside:.1%} of this set sits outside the structures "
+                   f"the model was fitted on"
+                   + (f", and none of it is inside"
+                      if max(nearest) < EXTRAPOLATION_BELOW else
+                      f", while {inside:.1%} reaches the threshold")
+                   + f" (median {median:.3f}, max {max(nearest):.3f} against a "
+                     f"{EXTRAPOLATION_BELOW} threshold). An order can be "
+                     f"produced; its meaning is not established.")),
     }
 
 
@@ -375,6 +515,18 @@ def nearest_training_set(survivors, candidates=None, size=300):
                         sum(1 for v in nearest if v >= EXTRAPOLATION_BELOW)
                         / len(nearest), 4)})
     out.sort(key=lambda r: -r["median_nearest"])
+    # J: 0.220 against 0.217 is not "actually nearest". The medians are
+    # rounded to three places, so anything inside that is a tie and is said to
+    # be one.
+    if len(out) > 1:
+        top = out[0]["median_nearest"]
+        tied = [r["training_set"] for r in out
+                if abs(r["median_nearest"] - top) <= 0.005]
+        if len(tied) > 1:
+            out[0]["tied_with"] = tied[1:]
+            out[0]["tie_note"] = (
+                f"{' and '.join(tied)} are level within the precision these "
+                f"medians are reported to; neither is nearer")
     return out
 
 
@@ -390,14 +542,15 @@ def answerable_questions(words=None):
 
     manifest = ROOT / "data" / "raw" / "imi_combine" / "manifest.json"
     out = {"resolution_available": [], "resolution_absent": "molecular target",
-           "why": "no dataset here records which protein a compound acted on",
-           "scope": "counts below are over the FULL source "
-                    "(data/processed/combined_bioassay_data.tsv, 74,202 rows). "
-                    "The model in use was fitted on data/work/imi_clean.parquet, "
-                    "which keeps only the 22,051 rows carrying BOTH the "
-                    "gram-positive and gram-negative labels -- so its "
-                    "gram-positive actives number 8,601, not 17,530. The two "
-                    "figures are the same label at different scopes."}
+           "why": "no dataset here records which protein a compound acted on"}
+    # H: this sentence existed to stop a reader confusing two scopes of the
+    # same label, and every number in it was typed. One of them, 8,601, is one
+    # away from what the fitted set holds -- so the note written to prevent a
+    # misreading carried one. The figures are read from the records now.
+    #
+    # The duplicated-count test did not catch it: it looks for the same number
+    # twice, and 8,600 appears elsewhere without a thousands separator.
+    full = fitted = None
     if manifest.exists():
         body = json.loads(manifest.read_text())
         verified = body.get("verified_contents", {})
@@ -408,8 +561,33 @@ def answerable_questions(words=None):
                     "active": value.get("active"),
                     "inactive": value.get("inactive"),
                 })
+                if key.startswith("gram-positive"):
+                    full = value.get("active")
         if verified.get("continuous_values"):
             out["continuous"] = verified["continuous_values"]
+    features = WORK / "imi_fp" / "features.json"
+    rows = None
+    if features.exists():
+        record = json.loads(features.read_text())
+        rows = record.get("rows")
+        labels = record.get("labels") or {}
+        fitted = labels.get("positive")
+    if full is not None and fitted is not None and rows:
+        out["scope"] = (
+            f"the counts below are over the FULL source "
+            f"(data/processed/combined_bioassay_data.tsv). The model in use "
+            f"was fitted on data/work/imi_clean.parquet, which keeps only the "
+            f"{rows:,} rows carrying BOTH the gram-positive and gram-negative "
+            f"labels -- so its gram-positive actives number {fitted:,}, not "
+            f"{full:,}. The two figures are the same label at different "
+            f"scopes.")
+    else:
+        out["scope"] = (
+            "the counts below are over the full source; the model was fitted "
+            "on the subset carrying both organism labels, and the same label "
+            "has a different count in each. The two records needed to state "
+            "both numbers are not both on this disk, so neither is given here "
+            "rather than one being typed in.")
     out["substitution"] = (
         "a request naming a molecular target can be restated as a request about "
         "an organism class, which the evidence does resolve. That answers a "
@@ -419,51 +597,19 @@ def answerable_questions(words=None):
     return out
 
 
-def rankable_alternatives(frontier, library, features, limit=None, size=400,
-                          epochs=10, learning_rate=0.5):
-    """Which looser specification can the model actually order?
-
-    The revision for an unrankable verdict. Each frontier member is measured,
-    so the answer names a specification and its measured distinct share rather
-    than suggesting that loosening something might help.
-    """
-    import knobs as knobs_mod
-    import sweep as sweep_mod
-
-    from rdkit import Chem
-    from rdkit.Chem import Descriptors, rdMolDescriptors
-
-    nitrogen = {s["name"]: s for s in knobs_mod.settings_of("nitrogen")}
-    out = []
-    for spec in frontier:
-        variant = sweep_mod.Variant(spec["choices"])
-        survivors = []
-        for text in sweep_mod.iter_library(library, limit):
-            mol = smiles_mod.parse(text)
-            if mol is None:
-                continue
-            if variant.charge is not None and Chem.GetFormalCharge(mol) != variant.charge:
-                continue
-            if Descriptors.MolWt(mol) >= variant.mw_limit:
-                continue
-            if rdMolDescriptors.CalcNumRotatableBonds(mol) > variant.rot_limit:
-                continue
-            if not nitrogen[spec["choices"]["nitrogen"]]["test"](mol):
-                continue
-            survivors.append(text)
-            if len(survivors) >= size * 3:
-                break
-        if len(survivors) < 50:
-            continue
-        measured = rankability(survivors, features, epochs, learning_rate, size)
-        out.append({"specification": spec["specification"],
-                    "steps_from_baseline": spec.get("steps_from_baseline"),
-                    "distinct_share": measured.get("distinct_share"),
-                    "verdict": measured["verdict"]})
-        if measured["verdict"] == "answerable":
-            break
-    return out
-
+# REMOVED: rankable_alternatives()
+#
+# It measured each frontier member to name which looser specification the
+# model could order. Nothing called it -- the revision for an unrankable
+# verdict states the action in words and says the measurement was not run.
+#
+# It is not left in place because of its default, `size=400`: the sample
+# count this module retracted. The distinct share rises as fewer molecules
+# are measured, so a search that stops at the first specification reading
+# `answerable` on 400 of them would have returned a pass for almost any
+# frontier. Dead code holding the retracted number is how the retraction
+# gets undone by whoever wires it up next. The measurement is worth having;
+# it has to be written against every survivor, not against a sample.
 
 def report(survivors, features=WORK / "imi_fp" / "features.parquet",
            training_library=WORK / "imi_clean.parquet", size=SAMPLE,
@@ -505,6 +651,25 @@ def report(survivors, features=WORK / "imi_fp" / "features.parquet",
                                "the tie-break rather than the model would "
                                "choose them",
         }
+    # A verdict the sample could not reach has a revision too, and it is the
+    # cheapest one in here: measure the rest of the set. Leaving it out would
+    # make the one unresolved verdict the only one with nothing to do about it.
+    if rank["verdict"] == "not_settled_at_this_sample":
+        revisions["ranking"] = {
+            "problem": f"{rank.get('distinct_share', 0):.1%} of scores are "
+                       f"distinct, above the {MIN_DISTINCT_SHARE:.0%} floor, "
+                       f"but measured on {rank.get('sampled', 0):,} of "
+                       f"{rank.get('of_survivors', 0):,} survivors, and this "
+                       f"share falls as more are measured",
+            "measured_alternatives": f"measure all "
+                                     f"{rank.get('of_survivors', 0):,} "
+                                     f"survivors. That is the whole of it: no "
+                                     f"setting has to change and no new data "
+                                     f"is needed, only the rest of this set",
+            "what_this_means": "nothing is established about ordering this "
+                               "set either way. A top N must not be drawn "
+                               "from it on the strength of this figure",
+        }
 
     return {
         "survivors": len(survivors),
@@ -537,12 +702,23 @@ def show(body, cost=None):
 
     r = body["rankability"]
     print(f"\n  ordering the survivors: {render_mod.verdict(r['verdict'])}")
-    if r.get("means"):
-        for line in render_mod.wrap(r["means"], indent=6, hanging=8):
-            print(line)
+    for line in r.get("means_lines") or ([r["means"]] if r.get("means") else []):
+        for out_line in render_mod.wrap(line, indent=6, hanging=8):
+            print(out_line)
     if r.get("sampled"):
         print(f"      measured on {r['sampled']:,} of {r['of_survivors']:,} "
               f"survivors (sample seed {body['sample_seed']})")
+    # The floor is a convention and the sampled reading leans on a bound that
+    # was observed rather than proved. Both are the reader's to weigh, so
+    # neither stays in the record only.
+    if r.get("floor_basis"):
+        for line in render_mod.wrap(f"the {r['floor_distinct']:.0%} floor is "
+                                    f"{r['floor_basis']}", indent=6, hanging=8):
+            print(line)
+    if r.get("rests_on"):
+        for line in render_mod.wrap(f"this rests on {r['rests_on']}",
+                                    indent=6, hanging=8):
+            print(line)
 
     a = body["applicability"]
     print(f"\n  predicting activity: {render_mod.verdict(a['verdict'])}")
@@ -645,6 +821,22 @@ def show(body, cost=None):
                     # It is the column a reader scans, so it earns the mark.
                     mark = "*" if row["inside_threshold"] >= 0.5 else " "
                     label = render_mod.training_set_phrase(row)
+                    if row.get("tie_note"):
+                        for line in render_mod.wrap(row["tie_note"],
+                                                    indent=4, hanging=6):
+                            print(line)
+                    # J, second half: a set measuring another barrier sitting
+                    # at the top is worth saying out loud. The same run warns
+                    # that these conditions are about the Gram-negative
+                    # membrane and not the blood-brain barrier.
+                    if row.get("measures") and "blood-brain" in row["measures"]:
+                        for line in render_mod.wrap(
+                                "that set measures a different barrier from "
+                                "the one these conditions are about; its "
+                                "distance says what the structures resemble, "
+                                "not what would accumulate",
+                                indent=4, hanging=6):
+                            print(line)
                     print(f"    {mark} {label:38} "
                           f"median nearest {row['median_nearest']:.3f}, "
                           f"{row['inside_threshold']:.1%} at or above "

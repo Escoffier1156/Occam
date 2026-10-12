@@ -192,12 +192,65 @@ def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
     for row in rows:
         row["state"] = row["state_by_sketch"]
 
+    def abandoned_published(row):
+        """How many settings this specification left that a paper states.
+
+        Leaving a published setting is the expensive move; leaving a threshold
+        this study chose costs nothing, because there was no claim there to
+        give up. The old ordering could not tell them apart: it read the
+        weakest provenance of the whole specification, so moving the published
+        rotatable limit two steps ranked level with moving a bound this study
+        picked, and the tie fell to whichever kept more molecules.
+
+        Counted in STEPS, not in knobs. Giving up one published setting by two
+        steps and giving up one by a single step are not the same move, and
+        counting knobs made them tie: rotatable 5 -> 9 and rotatable 5 -> 7
+        both read as "one published setting abandoned".
+        """
+        steps = 0
+        for knob, setting in row["loosened"].items():
+            was = knobs_mod.setting(knob, baseline[knob])["provenance"]
+            if not str(was).startswith("published"):
+                continue
+            # A move that lands on another published setting gives up nothing:
+            # the weight bound at 600 Da is stated by a paper, so arriving
+            # there is not leaving the published rules.
+            now = knobs_mod.setting(knob, setting)["provenance"]
+            if str(now).startswith("published"):
+                continue
+            steps += abs(knobs_mod.strictness(knob, setting)
+                         - knobs_mod.strictness(knob, baseline[knob]))
+        return steps
+
+    def overshoot(row):
+        """How far past the request this specification goes.
+
+        Asked for 500, the old tie-break offered 686: it was -survivors,
+        which prefers the biggest set and so prefers the biggest overshoot.
+        What was asked for is the target, not a floor to clear by as much as
+        possible. A specification that does not reach the request sorts last
+        rather than first.
+
+        The review that found this put a reachable 520 one step tighter, and
+        that figure is withdrawn: counted exactly, the tighter specification
+        holds 494. The ordering was wrong about which overshoot to prefer; it
+        was not hiding an answer.
+        """
+        count = (row.get("exact") or {}).get("scaffolds_exact")
+        if count is None:
+            count = row.get("scaffolds_estimated")
+        if count is None or count < required:
+            return float("inf")
+        return count - required
+
     def rank(row):
-        # Least loosened first, then published provenance, then more survivors
-        # as a deterministic tie-break rather than a preference.
+        # Fewest steps, then fewest published settings given up, then closest
+        # to what was asked, then a deterministic tie-break that is a
+        # tie-break and not a preference.
         return (row["steps_from_baseline"],
-                0 if row["provenance"]["weakest"] == "published" else 1,
-                -row["survivors"])
+                abandoned_published(row),
+                overshoot(row),
+                row["specification"])
 
     # Provisional, on the sketch: enough to decide WHICH rows are worth an
     # exact pass. The order is settled again afterwards on the exact counts.
@@ -233,6 +286,57 @@ def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
 
     feasible = sorted((r for r in rows if r["state"] == "feasible"), key=rank)
 
+    # CONTRAINDICATION 88: THE CANDIDATES NEAREST THE REQUEST ARE THE ONES THE
+    # SKETCH CANNOT PLACE
+    #
+    # A specification lands in the uncertain band when its estimate is within
+    # three standard errors of the requirement -- that is, when it is CLOSE TO
+    # THE ANSWER. The band is where the best candidates live, by construction.
+    #
+    # Those rows were then excluded from `feasible`, so the recommendation was
+    # drawn from everything except the near misses. Asked for 500, the nearest
+    # candidates estimated at 499 and 481 fell in the band, were dropped
+    # unmeasured, and the answer became 686. The tie-break was blamed first;
+    # the tie-break was not the whole of it.
+    #
+    # Counted exactly those rows hold 494 and 475, so on this library none of
+    # them was the answer -- an earlier note here said 520 was available and
+    # that is withdrawn. The fault stands: the rows closest to the request
+    # were the ones being discarded before anyone counted them.
+    #
+    # Resolved, they are placed correctly, and that is the normal path. Left
+    # unresolved -- no library to re-read, or the exact pass switched off --
+    # they used to vanish with nothing said. A candidate that is unplaced is
+    # not a candidate that failed, and the difference has to be on the screen.
+    held_back = sorted((r for r in rows
+                        if r["state"] == "uncertain" and "exact" not in r),
+                       key=rank)
+
+    # THE NEAREST MISS IS THE ONE LINE A READER WANTS
+    #
+    # `held_back` covers the rows nothing could place. It does not cover the
+    # rows that WERE placed, exactly, just short -- and those are the ones the
+    # request was nearest to. Asked for 500, the frontier offers 686 and says
+    # nothing about the specification counted at 494, six short, two steps
+    # tighter and keeping a published limit.
+    #
+    # Six short is actionable in a way 686 is not: widen the library, or drop
+    # the request to 494. Neither is visible from the recommendation alone.
+    # This is also how a wrong premise gets corrected -- a reviewer working
+    # from an estimate of 520 could not retract it, because the measured 494
+    # existed only in a count that was taken and then discarded. `frontier`
+    # holds feasible rows, so it had nowhere to go.
+    #
+    # Only exactly-counted rows qualify. A sketch estimate six short of the
+    # requirement is inside its own error bar and would be a guess printed as
+    # a near miss.
+    missed = [r for r in rows
+              if (r.get("exact") or {}).get("scaffolds_exact") is not None
+              and r["exact"]["scaffolds_exact"] < required]
+    nearest_miss = max(missed, key=lambda r: (r["exact"]["scaffolds_exact"],
+                                              -r["steps_from_baseline"]),
+                       default=None)
+
     out = {
         "request": {"distinct_scaffolds_required": required,
                     "specification_as_asked": baseline},
@@ -243,6 +347,34 @@ def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
         "counted_exactly": [r["specification"] for r in rows if "exact" in r],
         "counted_by_sketch_only": [r["specification"] for r in rows
                                    if "exact" not in r],
+        "held_back": [{"specification": r["specification"],
+                       "choices": r["choices"],
+                       "scaffolds_estimated": r["scaffolds_estimated"],
+                       "steps_from_baseline": r["steps_from_baseline"],
+                       "loosened": r["loosened"]}
+                      for r in held_back[:FRONTIER]],
+        "held_back_why": "the sketch could not place these against the "
+                         "requirement: their estimate is inside three standard "
+                         "errors of it. That is where the closest candidates "
+                         "are, so they are named rather than dropped. An exact "
+                         "second pass decides them, which needs the library",
+        "nearest_miss": nearest_miss and {
+            "specification": nearest_miss["specification"],
+            "choices": nearest_miss["choices"],
+            "scaffolds_exact": nearest_miss["exact"]["scaffolds_exact"],
+            "short_by": required - nearest_miss["exact"]["scaffolds_exact"],
+            "survivors": nearest_miss["survivors"],
+            "steps_from_baseline": nearest_miss["steps_from_baseline"],
+            "loosened": nearest_miss["loosened"],
+            "provenance": nearest_miss["provenance"],
+        },
+        "nearest_miss_why": "the closest specification that was counted "
+                            "exactly and did not reach the request. It is not "
+                            "an alternative -- it does not fill the order -- "
+                            "but how far short it fell is the figure that says "
+                            "whether to widen the library or lower the "
+                            "request, and a recommendation further away "
+                            "cannot say it",
         "blocked_knobs": knobs_mod.BLOCKED,
         "how_this_was_chosen": [
             "a variant must reach the required distinct scaffold count; the "
@@ -250,7 +382,18 @@ def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
             "is on scaffolds and not on survivors",
             "among those, the fewest relaxation steps from the specification as "
             "asked",
-            "ties towards settings a published rule already covers",
+            "then the fewest PUBLISHED settings given up. Leaving a bound this "
+            "study chose costs nothing, because no claim was being made there; "
+            "leaving one a paper states is the expensive move, and the two "
+            "were not told apart before",
+            "then the specification closest to what was asked. The tie-break "
+            "used to be the largest survivor count, which prefers the largest "
+            "overshoot: 686 distinct scaffolds were offered against a request "
+            "for 500, and the two steps between them were never weighed. The "
+            "specification said here to reach about 520 was counted exactly "
+            "afterwards at 494, six short of the request, so it was not an "
+            "alternative that had been missed -- that figure is withdrawn. It "
+            "is reported as the nearest miss instead",
             "the step granularity is a human choice, so the frontier is "
             "returned and the ranking is a suggestion",
         ],
