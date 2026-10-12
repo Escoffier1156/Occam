@@ -3,7 +3,7 @@
 最終更新 2026-10-10。作業ディレクトリ `/home/shogo/occam`。
 
 **この文書は §13 まである。先頭から読むと §0 と §1 で全体像、§8 で再開点が分かる。
-数字を使う前に §4 と §7（禁忌85項目）を読むこと。**
+数字を使う前に §4 と §7（禁忌87項目）を読むこと。**
 
 規約：コード内のコメントは**英語**、報告は**日本語**。
 
@@ -166,7 +166,7 @@ nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_i
     tests/test_descriptors.py tests/test_folds.py tests/test_smiles.py \
     tests/test_invariants_locked.py tests/test_render.py tests/test_request.py \
     tests/test_no_duplicated_counts.py tests/test_contraindications.py' 2>&1 | tee data/work/tests.log
-nix-shell --run 'cd engine && cargo test --release'
+nix-shell --run 'cd engine && cargo test --release -- --test-threads=1'
 ```
 
 **出力は必ずファイルに落とす**（禁忌48）。
@@ -732,7 +732,7 @@ ZINC の生ファイルはリポジトリに置いていない（**ライセン�
 
 | マーク | 意味 | 件数 |
 |---|---|---|
-| **〔T〕** | **罠が戻るとテストが落ちる。**これだけが実効的な防御 | **35** |
+| **〔T〕** | **罠が戻るとテストが落ちる。**これだけが実効的な防御 | **36** |
 | **〔T一部〕** | 一部はテストが見ているが、項目の核心は見ていない | 10 |
 | **〔文〕** | **文章だけ。**次に踏んだときに止めるものが何も無い | **40** |
 
@@ -829,6 +829,8 @@ assertion を書くこと。文章を書き直すことではない。
 83. 〔T〕 **1つの出力に同じ件数が2箇所の独立したリテラルから出てはいけない** — `74,202` が `occam.py` の書式文字列と `screenable.py` の scope 文の両方に書かれていて、**同じ出力に2回出ていた。**再取り込みすれば片方だけ動く。同じ形がもう1件あった：訓練集合の名前が `IMI-COMBINE (activity, 22,051)` と件数込みで、その件数は同じ関数が実測していた。**禁忌81 はこれを文章で言っていて、効かなかった。**`tests/test_no_duplicated_counts.py` が報告側モジュールの文字列リテラルを走査し、件数が2箇所に書かれていたら落ちる。許可リストは引用・ページ番号・標本サイズのみで、理由を1文添えないと別のテストが落ちる
 84. 〔T〕 **件数の上限は状態量の上限ではない** — frontier を8件に絞れば正確パスの**回数**は縛れるが、**各パスのメモリは縛れない。**8セットを同時に持つと `8 × 46,437骨格 × 127.4 B ≈ 45 MB` で、sketch が避けている額（27仕様全部を正確にした 40.2 MiB）とほぼ同じになる。**1仕様ずつ走らせて都度捨てることでピークが最大の1仕様分（約 5.6 MiB）に収まる。**不変条件3（演算器とバルクを同時に1つしか持たない）を第2パスにも適用する形。代償は I/O が仕様数倍。同時本数を上げるなら `k × 最大仕様の骨格数 × 127 B` で予算から逆算する（発明した重みではなく除算）。`tests/test_contraindications.py` が構造で固定：`exact_scaffold_count` は件数だけ返す（集合が外に出られない）、内包表記の中では呼ばない（全結果を同時に持たない）、`FRONTIER` は宣言された定数
 85. 〔T〕 **第2パスは第1パスと同じ量のデータを読まなければならない** — sweep を `--limit 20000`、正確パスを `--limit 100000` で回したら、frontier が **`123 molecules pass, 536 distinct scaffolds`** と出した。**骨格が生存数を超えていて原理的に不可能。**`exact` の中身（683生存/536骨格）は整合していて、**表示が sketch の生存数と正確な骨格数を組み合わせていた。**禁忌25・81 と同じスコープの取り違え。直したのは4点：sweep が読んだ `limit` を記録する、不一致なら理由を出して停止する（`unrecorded` も拒否）、正確パスは `survivors` も置き換える、**骨格数 > 生存数なら落ちる**（このクラス全体を捕まえる最も安い検査）
+86. 〔文〕 **文字列検索で「無い」を結論しない** — `docs/overbuilt.md` に「製品経路はエンジンを呼ばない」と書いたが、**呼んでいた。**`grep 'engine/target'` で当たらなかったのは、コードがパス結合（`ROOT / "engine" / "target-fp" / ...`）で書かれていてその文字列が現れないから。**無いことの証明に文字列検索を使った。**正しくは import/呼び出しグラフを辿るか、実際に起動して確かめる。2026-10-12 に `py/screenable.py:63` を読んで判明し、`overbuilt.md` と `patent_inventory.md` の両方を訂正した
+87. 〔T〕 **プロセス全体のガードを持つなら、テストは逐次で回す** — `cargo test` は既定で並列。`bulk.rs` の `one_bulk_at_a_time` テストは**意図的に `Bulk` を保持したまま2つ目を作る**（`catch_unwind` で panic を捕まえる設計）ので、その窓の間に別スレッドの `process::tests::learning_and_scoring` が `Bulk::new` を呼ぶと `LIVE_BULKS` の assert が発火する。**テストランナーの偽陽性であって違反ではない。**1回出て、**その後10回再現しなかった。**カウンタをスレッドローカルにすれば黙るが、**スレッドが存在しない本番でガードが弱くなる。**直すのはテストの回し方（`-- --test-threads=1`）。**診断できたのは出力をファイルに落としていたから**（禁忌48）。標準出力だけなら traceback を失い、10回の再現しない再実行で「まぐれ」として閉じていた
 
 ### 変換の待ち行列（〔文〕50件のうち、assertion が書けるもの）
 
@@ -1050,7 +1052,7 @@ nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_i
     tests/test_descriptors.py tests/test_folds.py tests/test_smiles.py \
     tests/test_invariants_locked.py tests/test_render.py tests/test_request.py \
     tests/test_no_duplicated_counts.py tests/test_contraindications.py' 2>&1 | tee data/work/tests.log
-nix-shell --run 'cd engine && cargo test --release'
+nix-shell --run 'cd engine && cargo test --release -- --test-threads=1'
 nix-shell --run 'OCCAM_FACTORS="1 10 100 1000" python3 -m unittest tests/test_memory_invariant.py'
 ```
 

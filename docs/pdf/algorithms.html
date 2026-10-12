@@ -1,0 +1,817 @@
+<!doctype html>
+<html lang="ja"><head><meta charset="utf-8">
+<title>Occam — アルゴリズム解剖書</title>
+<style>
+@page { size: A4; margin: 18mm 16mm 20mm 16mm;
+        @bottom-center { content: counter(page); } }
+body { font-family: "Noto Sans CJK JP", sans-serif; font-size: 9.6pt;
+       line-height: 1.65; color: #111; }
+h1 { font-size: 17pt; margin: 0 0 2mm 0; }
+h2 { font-size: 12.5pt; margin: 9mm 0 2mm 0; padding-bottom: 1.5mm;
+     border-bottom: 1.6pt solid #111; page-break-after: avoid; }
+h3 { font-size: 10.8pt; margin: 6mm 0 1.5mm 0; page-break-after: avoid; }
+h4 { font-size: 10pt; margin: 4.5mm 0 1mm 0; color: #333;
+     page-break-after: avoid; }
+p { margin: 0 0 2.2mm 0; }
+p.bullet { padding-left: 5mm; text-indent: -3mm; }
+p.bullet:before { content: "— "; color: #666; }
+p.num { padding-left: 6mm; text-indent: -6mm; }
+table { border-collapse: collapse; width: 100%; margin: 2.5mm 0 4mm 0;
+        font-size: 8.9pt; page-break-inside: avoid; }
+th { background: #f0f0f0; text-align: left; font-weight: 600; }
+th, td { border: 0.5pt solid #bbb; padding: 1.4mm 2.2mm;
+         vertical-align: top; }
+pre { background: #f6f6f6; border-left: 2.5pt solid #999; padding: 2.5mm 3mm;
+      font-family: "DejaVu Sans Mono", monospace; font-size: 8.2pt;
+      line-height: 1.45; white-space: pre-wrap; margin: 2.5mm 0 4mm 0;
+      page-break-inside: avoid; }
+code { font-family: "DejaVu Sans Mono", monospace; font-size: 8.6pt;
+       background: #f2f2f2; padding: 0 0.6mm; }
+blockquote { margin: 2.5mm 0; padding: 2mm 3mm; background: #fbf7e8;
+             border-left: 2.5pt solid #c9a227; }
+.head { border-bottom: 2.5pt solid #111; padding-bottom: 3mm;
+        margin-bottom: 5mm; }
+.sub { color: #555; font-size: 9pt; margin: 0; }
+.warn { background: #fdf0f0; border: 0.8pt solid #c66; padding: 3mm;
+        margin: 0 0 5mm 0; }
+</style></head><body>
+<div class="head">
+  <h1>Occam — アルゴリズム解剖書</h1>
+  <p class="sub">2026-10-12 ／ 全モジュールの機構・定数・不変条件</p>
+</div>
+<div class="warn"><strong>すべて実装から転記。</strong>定数・閾値・正規表現は出典の行から取っている。実装とずれたら実装が正しい。</div>
+<h2>0. 読み方</h2>
+<table>
+<tr><th>記号</th><th>意味</th></tr>
+<tr><td><strong>[LOCK]</strong></td><td>KeepOut が AST レベルで封じている領域。整形・コメント・変数改名は通るが、構造変更は拒否される</td></tr>
+<tr><td><strong>不変条件 n</strong></td><td>§1 の3つのうち n 番目</td></tr>
+<tr><td>〔製品〕</td><td><code>py/occam.py</code> から推移的に到達する経路</td></tr>
+<tr><td>〔計測〕</td><td>確定値を作った経路。製品からは呼ばれない</td></tr>
+<tr><td>〔降格〕</td><td>候補生成。<code>--emit-molecules</code> なしでは止まる</td></tr>
+</table>
+<p><strong>本書の対</strong>は <code>docs/final_report.md</code>（何を establish したか）。</p>
+<p>本書は<strong>どう動くか</strong>だけを書く。</p>
+<h2>1. 不変条件（3つ）</h2>
+<p>すべて <code>engine/</code> の Rust にあり、KeepOut 9ロックのうち5つがこれを守っている。</p>
+<table>
+<tr><th>#</th><th>主張</th><th>強制の方法</th><th>場所</th></tr>
+<tr><td><strong>1</strong></td><td>carry（オペレータ間を生き延びる唯一の値）の長さが固定。バルクサイズにもデータ量にも依存しない</td><td><code>#[derive(Clone, Copy)]</code> が <code>Vec</code> / <code>HashMap</code> / <code>Box</code> / <code>String</code> を型として排除。<code>const</code> assert がサイズを固定</td><td><code>carry.rs</code> [LOCK]</td></tr>
+<tr><td><strong>2</strong></td><td>1ファイル1行グループ。parquet のフッタは行グループ数に比例するので、複数持つとメモリがデータ量に依存する</td><td>読み込み時に <code>num_row_groups() &gt; 1</code> なら<strong>エラーで拒否</strong></td><td><code>bulk.rs</code> [LOCK]</td></tr>
+<tr><td><strong>3</strong></td><td>バルクと演算器を同時に1つしか持たない</td><td><code>AtomicUsize</code> の <code>compare_exchange(0, 1)</code>。2つ目の生成で panic</td><td><code>bulk.rs</code> [LOCK] / <code>process.rs</code> [LOCK]</td></tr>
+</table>
+<h3>不変条件3 の核心</h3>
+<pre>
+// engine/src/main.rs [LOCK: ast name=&quot;one_bulk_per_iteration&quot;]
+for bulk in &amp;mut bulks {
+    let bulk = bulk?;
+    let mut op = DomainOperator::new(pass, args.learning_rate);
+    carry = op.absorb(&amp;bulk, carry);
+    // op and bulk are dropped here, before the next iteration
+}
+</pre>
+<p><code>let mut op = ...</code> を<strong>再代入</strong>にすると、次の演算器を<strong>前の演算器を drop する前に</strong></p>
+<p>構築する。<code>compare_exchange</code> がそれを捕まえる（禁忌6）。</p>
+<h3>検査の実体</h3>
+<pre>
+// bulk.rs — compare_exchange であって fetch_add ではない。
+// 検査と確保が1ステップでなければならない。
+fn new(rows: Vec&lt;Sample&gt;) -&gt; Self {
+    let claimed = LIVE_BULKS.compare_exchange(0, 1, Ordering::SeqCst, Ordering::SeqCst);
+    assert!(claimed.is_ok(), &quot;two bulks alive at once&quot;);
+    Bulk { rows }
+}
+</pre>
+<h2>2. エンジン（Rust、5ファイル）〔製品 ＋ 計測〕</h2>
+<p><strong>製品経路から呼ばれる。</strong><code>py/screenable.py:63</code> の <code>ENGINE_FP</code> が</p>
+<p><code>engine/target-fp/release/engine</code> を subprocess で起動し、順位付けの可否を判定する。</p>
+<h3>2.1 <code>carry.rs</code>（425行）— 固定長の状態</h3>
+<h4>定数</h4>
+<table>
+<tr><th>定数</th><th>値</th><th>役割</th></tr>
+<tr><td><code>K</code></td><td><strong>256</strong></td><td>候補スロット数。コンパイル時固定</td></tr>
+<tr><td><code>F</code>（既定ビルド）</td><td><strong>9</strong></td><td>入力特徴数（物理化学記述子）</td></tr>
+<tr><td><code>F</code>（<code>--features fingerprint</code>）</td><td><strong>2048</strong></td><td>指紋ビット数</td></tr>
+<tr><td><code>STANDARDIZE</code></td><td><code>!fingerprint</code></td><td>連続値は標準化、疎な二値は<strong>しない</strong></td></tr>
+<tr><td><code>QUADRATIC</code></td><td><code>!fingerprint &amp;&amp; !linear</code></td><td>2次項（平方と対積）を足すか</td></tr>
+<tr><td><code>W</code></td><td><code>QUADRATIC ? F + F + F(F−1)/2 : F</code></td><td>モデル次元。F=9 なら <strong>54</strong></td></tr>
+<tr><td><code>BINS</code></td><td><strong>1024</strong></td><td>スコアヒストグラムのビン数（クラスごと）</td></tr>
+</table>
+<h4>なぜ疎な二値を標準化しないか（コメントから）</h4>
+<blockquote>割合 p のビットは分散 p(1−p) を持つので、標準偏差で割ると稀なビットが</blockquote>
+<blockquote>1/√(p(1−p)) 倍される。p = 0.001 では立ったビットが <strong>+31</strong> になり、</blockquote>
+<blockquote>内積が少数の稀なビットで決まる。平均を引くと疎性も壊れ、<strong>全ての0ビットが −p</strong> に</blockquote>
+<blockquote>なってベクトルが密になる。</blockquote>
+<h4><code>Carry</code> の中身</h4>
+<pre>
+pub struct Carry {
+    pub top: [Candidate; K],        // 候補スロット
+    pub bulks_seen: u64,
+    pub weights: [f32; W],          // pass 1 で学習
+    pub bias: f32,
+    pub mean: [f32; F],             // py/descriptors.py 由来。ここでは学習しない
+    pub inv_std: [f32; F],
+    pub seen: u64,                  // 学習率スケジュールを駆動
+    pub hist: [[u32; BINS]; 2],     // 保留行のスコア、クラス別
+    pub prequential: [[u32; BINS]; 2],
+}
+</pre>
+<p><strong><code>Copy</code> が不変条件1を強制する。</strong>ヒープを持つフィールドを足すと derive が失敗し、</p>
+<p>下の <code>const</code> assert も合わなくなる。</p>
+<pre>
+const PAYLOAD_BYTES: usize = K * size_of::&lt;Candidate&gt;()
+    + 2 * size_of::&lt;u64&gt;()
+    + (W + 2 * F + 1) * size_of::&lt;f32&gt;()
+    + 4 * BINS * size_of::&lt;u32&gt;();
+const _: () = assert!(CARRY_BYTES &gt;= PAYLOAD_BYTES - 8
+                   &amp;&amp; CARRY_BYTES &lt;= PAYLOAD_BYTES + 8);
+</pre>
+<p>Rust はフィールドを並べ替えるので、**厳密な合計ではなく「アラインメント以上の</p>
+<p>パディングが無い」**という形で縛っている。</p>
+<h4>固定長状態から大域 AUC を出す</h4>
+<p><strong>これが鍵。</strong>スコアを [0,1] に押し込んで 1024 ビンのヒストグラムに入れ、</p>
+<p>そこから AUC を計算する。<strong>全スコアを保持しない。</strong></p>
+<pre>
+pub fn auc(hist: &amp;[[u32; BINS]; 2]) -&gt; Option&lt;f64&gt; {
+    let neg = hist[0].iter().sum(); let pos = hist[1].iter().sum();
+    if neg == 0 || pos == 0 { return None; }
+    let mut seen_neg = 0u64; let mut concordant = 0f64;
+    for bin in 0..BINS {
+        let n = hist[0][bin]; let p = hist[1][bin];
+        // このビンの陽性は下の全陰性に勝ち、同ビンの n 件と引き分ける
+        concordant += p as f64 * (seen_neg as f64 + n as f64 / 2.0);
+        seen_neg += n;
+    }
+    Some(concordant / (pos as f64 * neg as f64))
+}
+</pre>
+<p>同ビン内の同点は<strong>半分ずつ分ける</strong>（台形則が同点ブロックに対して行うのと同じ）。</p>
+<p>厳密 AUC との差は実測で <strong>8.9 × 10⁻⁵</strong>。</p>
+<h4>順位付けは logit で行う（禁忌14）</h4>
+<pre>
+pub fn logit(&amp;self, x: &amp;[f32; W]) -&gt; f32   // ← 順位付けはこれ
+pub fn predict(&amp;self, x: &amp;[f32; W]) -&gt; f32 // = sigmoid(logit)
+</pre>
+<blockquote>ロジスティック関数は単調なので厳密演算では順序を保つが、<strong>f32 では飽和する。</strong></blockquote>
+<blockquote>モデルが適合していないデータでは z が大きくなり、<code>sigmoid(z)</code> が多数の行で</blockquote>
+<blockquote><strong>ちょうど 1.0 に丸まる。</strong>そこでの順序は失われ、安定ソートが黙って入力順に</blockquote>
+<blockquote>退化する — <strong>スコアで選んでいるように見えて、ファイル位置で選んでいる。</strong></blockquote>
+<p>M3 の2回目の測定が撤回された原因がこれ。</p>
+<h4>候補スロットの更新</h4>
+<pre>
+pub fn credit(&amp;mut self, id: u64, score: f32) {
+    // 既知の id は support を +1、score は max を取る
+    // 未知の id は空きスロットを取るか、最弱スロットより高ければ置換
+}
+</pre>
+<p><code>Candidate::EMPTY</code> は <code>score: f32::NEG_INFINITY, support: 0</code>。</p>
+<p><strong>空きスロットは常に実候補より弱い</strong>（<code>weaker_than</code> が明示的に扱う）。</p>
+<h3>2.2 <code>bulk.rs</code>（270行）— 読み手</h3>
+<table>
+<tr><th>不変条件3</th><th><code>LIVE_BULKS</code> の <code>compare_exchange</code>。返したバルクへの参照を保持せず、<strong>先読みしない</strong></th></tr>
+<tr><td>不変条件2</td><td><code>open_part()</code> が <code>num_row_groups() &gt; 1</code> を拒否。<strong>M3 で実際に発火した</strong></td></tr>
+</table>
+<h4>glibc の mmap 閾値を固定する（禁忌5）</h4>
+<pre>
+const M_MMAP_THRESHOLD: c_int = -3;
+unsafe { mallopt(M_MMAP_THRESHOLD, 64 * 1024); }
+</pre>
+<blockquote>64 KiB 以上の確保を mmap にすると、drop したバルクとそのデコード済みページが</blockquote>
+<blockquote>OS に返る。設定しないと glibc が最初の free 後に閾値を上げ、以降のバルクを</blockquote>
+<blockquote>ヒープから供給してフラグメントし、<strong>ピークがバルク数とアドレス配置で揺れる</strong></blockquote>
+<blockquote>（実測で最大 <strong>+19%</strong>）。明示設定は glibc の動的調整も無効にする。</blockquote>
+<h3>2.3 <code>process.rs</code>（180行）— 演算器</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>DEFAULT_LEARNING_RATE</code></td><td><strong>0.5</strong>（validation で選定、test では選ばない）</td></tr>
+<tr><td><code>L2</code></td><td><strong>1e-5</strong>（サンプルごと）</td></tr>
+</table>
+<h4>1サンプル分の SGD</h4>
+<pre>
+let x = Carry::expand(&amp;carry.standardize(&amp;sample.features));
+let p = carry.predict(&amp;x);
+Carry::record(&amp;mut carry.prequential, p, sample.label); // 学習する前のスコア
+carry.seen += 1;
+let rate = self.learning_rate / (carry.seen as f32).sqrt();  // 1/√seen 減衰
+let error = p - sample.label as f32;
+for i in 0..x.len() {
+    carry.weights[i] -= rate * (error * x[i] + L2 * carry.weights[i]);
+}
+carry.bias -= rate * error;
+</pre>
+<h4>2パス必要な理由</h4>
+<table>
+<tr><th>パス</th><th>内容</th></tr>
+<tr><td><strong>Learn</strong></td><td>訓練行から重みを更新。同時に prequential ヒストグラムを埋める（<strong>学習する前</strong>のスコア）</td></tr>
+<tr><td><strong>Score</strong></td><td>重みを凍結し、保留行を carry のヒストグラムに入れる</td></tr>
+</table>
+<blockquote>学習しながらスコアを取ると、<strong>あるモデルのスコアと別のモデルのスコアが混ざり</strong>、</blockquote>
+<blockquote>出てきた数字がどのモデルのものでもなくなる。</blockquote>
+<h3>2.4 <code>main.rs</code>（244行）— ループだけ</h3>
+<pre>
+usage: engine &lt;descriptor-dir&gt; [--stats stats.json] [--bulk-size N]
+              [--evaluate train|valid|test] [--epochs N] [--learning-rate R]
+              [--dump-scores FILE] [--save-weights FILE] [--load-weights FILE]
+</pre>
+<p><strong>パス間を生き延びるのは carry だけ。</strong></p>
+<h3>2.5 <code>metrics.rs</code>（32行）— ピーク RSS</h3>
+<p><code>/proc/self/status</code> の <strong>VmHWM</strong> を、ループ終了<strong>後に1回だけ</strong>読む。</p>
+<p>処理経路の中では何も走らない。<code>key=value</code> 1行を stderr に出し、</p>
+<p><code>tests/test_memory_invariant.py</code> が解析する。</p>
+<p><strong><code>ru_maxrss</code> は使えない</strong>（禁忌2）。subprocess は vfork なので親のメモリを引き継ぐ。</p>
+<h2>3. アシスト経路〔製品〕</h2>
+<pre>
+occam.py ─┬→ provenance.py   ライブラリの出自とルール照合
+          ├→ knobs.py        回せる条件と出自の型
+          ├→ sweep.py        K仕様を1パスで評価
+          ├→ propose.py      制約充足 + 最小緩和 + frontier
+          ├→ feasible.py     4値判定と必要件数
+          ├→ inventory.py    証拠の棚卸し（ファイルから読む）
+          ├→ screenable.py   順位付けの可否・適用範囲 → Rust エンジン起動
+          ├→ what_to_measure.py  必要な測定件数
+          └→ render.py       表示層（識別子を画面に出さない）
+</pre>
+<h3>3.1 <code>occam.py</code>（約700行）— 単一の入口</h3>
+<h4>散文の読み取りは<strong>閉じた語彙への決定的照合</strong>。LLM を使わない</h4>
+<blockquote>言語モデルは仕様に翻訳できるが、<strong>その読み取りは検査できない。</strong>しかも</blockquote>
+<blockquote><strong>助けようとする誘因を持つ唯一の部品</strong>になる — 不可能な標的を求められたら</blockquote>
+<blockquote>近いものを見つけてしまう。これはこの系が防ぐために存在する失敗そのもの。</blockquote>
+<p>成立するのは<strong>語彙が閉じているから</strong>。4つの性質、10の設定、1つの件数。</p>
+<h4>読み取りの順序（<code>parse()</code>）</h4>
+<table>
+<tr><th>順</th><th>何を</th><th>消費</th></tr>
+<tr><td>1</td><td><strong>導入句の強制語</strong>（<code>^[^:]{0,160}:</code> 内の <code>must</code> 等）</td><td>スパンを消費。<strong>以降の全要件が strict</strong></td></tr>
+<tr><td>2</td><td><strong>事実の主張</strong>（FACT_CLAIMS）</td><td>消費して <code>dropped_claims</code> へ</td></tr>
+<tr><td>3</td><td><strong>ライブラリ</strong>（LIBRARIES、先頭一致で break）</td><td>消費</td></tr>
+<tr><td>4</td><td><strong>成果物</strong>（DELIVERABLE）</td><td>消費</td></tr>
+<tr><td>5</td><td><strong>語彙の条件</strong>（VOCABULARY）</td><td>消費。強制マーカーのスパンも消費</td></tr>
+<tr><td>6</td><td><strong>数値の条件</strong>（NUMERIC）</td><td>消費。登録外なら <code>refused</code></td></tr>
+<tr><td>7</td><td><strong>電荷語</strong>（CHARGE_WORDS、<strong>消費済みスパンの外のみ</strong>）</td><td>消費して <code>refused</code></td></tr>
+<tr><td>8</td><td><strong>標的</strong>（TARGET_SHAPES）</td><td>消費</td></tr>
+<tr><td>9</td><td>残り = <code>unread</code></td><td>—</td></tr>
+</table>
+<p><strong>7の「消費済みスパンの外のみ」が要点。</strong><code>neutral ZINC</code> は3でライブラリとして</p>
+<p><code>neutral</code> を消費済みなので、7は発火しない。独立した条件として書いた場合だけ止まる。</p>
+<h4>定数</h4>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>STRICT_WINDOW</code></td><td><strong>40</strong>（強制マーカーが効く範囲。カンマで切れる）</td></tr>
+<tr><td><code>LEAD_IN</code></td><td><code>^[^:]{0,160}:</code></td></tr>
+<tr><td><code>STRICT_MARKERS</code></td><td><code>strictly</code> <code>must</code> <code>hard</code> <code>required</code> <code>no more than</code> <code>non-negotiable</code> <code>exactly</code> <code>fixed</code> <code>do not relax</code> <code>keep</code></td></tr>
+<tr><td><code>DELIVERABLE</code></td><td>`(\d[\d,]*)\s+(unique</td><td>distinct</td><td>different)?\s*(scaffolds?</td><td>骨格)` ほか</td></tr>
+</table>
+<p><code>骨格</code> は<strong>入力語彙</strong>（受け付ける側）。出力はすべて英語。</p>
+<h4>挿入語の許容（禁忌71）</h4>
+<pre>
+_FILLER = r&quot;(?:\s+(?:must|should|shall|is|are|be|being|to|the|a|an|kept|held|
+             strictly|exactly|hard|required|fixed|no)\b)*&quot;
+_COMPARATOR = r&quot;(?:\s*(?:(?:at\s+most|at\s+maximum|no\s+more\s+than|up\s+to|
+                under|below|less\s+than|fewer\s+than|of)\b|&lt;=|&lt;|≤|=))?&quot;
+</pre>
+<p>初版は <code>rotatable bonds at most 5</code> しか読めず、`the rotatable bonds must be at</p>
+<p>most 5` が<strong>黙って未読リストに落ちていた。</strong>ここに挙がる語は意味を持たない</p>
+<p>（コピュラ・冠詞・強制マーカー）。強制マーカーは別経路で読む。</p>
+<h4>停止するもの（すべて exit 1）</h4>
+<table>
+<tr><th>条件</th><th>メッセージ</th></tr>
+<tr><td>ライブラリが公表ルールと矛盾</td><td><code>the library contradicts the published rule the request is built on</code></td></tr>
+<tr><td>条件が別の障壁の規則</td><td><code>the conditions asked for are a published rule about a different barrier</code></td></tr>
+<tr><td>語彙外の値・量</td><td><code>the request named something this cannot read as a requirement</code></td></tr>
+<tr><td>ライブラリ無し</td><td><code>no library named.</code></td></tr>
+<tr><td>成果物無し</td><td><code>no deliverable named.</code></td></tr>
+<tr><td><code>--out-dir</code> が作れない</td><td><code>cannot write to --out-dir ...</code></td></tr>
+</table>
+<h3>3.2 <code>knobs.py</code>（約340行）— registry</h3>
+<h4>出自の型</h4>
+<table>
+<tr><th>型</th><th>意味</th></tr>
+<tr><td><code>published</code></td><td>公表規則が既に言っている範囲内。新しい化学的主張をしない</td></tr>
+<tr><td><code>relaxation</code></td><td>数値閾値を動かしただけ</td></tr>
+<tr><td><code>unjustified</code></td><td>新しい化学的主張。<strong>提案禁止</strong></td></tr>
+</table>
+<h4>設定（<code>ORDER = tuple(KNOBS)</code> で導出）</h4>
+<table>
+<tr><th>knob</th><th>設定</th><th>限界値</th><th>出自</th></tr>
+<tr><td><strong>nitrogen</strong></td><td><code>primary_amine</code></td><td>SMARTS</td><td>published（Richter 2017「unhindered primary amine best」）</td></tr>
+<tr><td></td><td><code>primary_or_secondary_amine</code></td><td>SMARTS</td><td>published</td></tr>
+<tr><td></td><td><code>basic_nitrogen</code></td><td>SMARTS</td><td>published（同条件の最広義）</td></tr>
+<tr><td><strong>rotatable</strong></td><td><code>rotatable_le_5</code></td><td>5</td><td>published（eNTRy 第3条件）</td></tr>
+<tr><td></td><td><code>rotatable_le_7</code></td><td>7</td><td>relaxation</td></tr>
+<tr><td></td><td><code>rotatable_le_9</code></td><td>9</td><td>relaxation</td></tr>
+<tr><td><strong>weight</strong></td><td><code>mw_under_450</code></td><td>450.0</td><td>relaxation（本研究の選択）</td></tr>
+<tr><td></td><td><code>mw_under_600</code></td><td>600.0</td><td><strong>published（二次：Richter 2017 内の逐語引用）</strong></td></tr>
+<tr><td></td><td><code>mw_unbounded</code></td><td>inf</td><td>published</td></tr>
+</table>
+<h4>SMARTS</h4>
+<pre>
+ENTRY_PRIMARY_AMINE = [$([N;H2;X3][CX4]),$([N;H3;X4+][CX4])]
+SECONDARY_AMINE     = [$([N;H1;X3]([CX4])[CX4]),$([N;H2;X4+]([CX4])[CX4])]
+BASIC_NITROGEN      = [$([NX3;H0,H1,H2;!$(N[!#6]);!$(N*=[O,N,S]);!$(N#*);
+                         !$([N][a])]),$([NX4+;!$(N*=[O,N,S])])]
+</pre>
+<h4>適用障壁（<code>APPLIES_TO</code>）</h4>
+<p><strong>この registry はグラム陰性外膜についてのもの。</strong>記録されるまで、どこにも</p>
+<p>書いていなかった。血液脳関門のデータに向けても最後まで走って何も報告しなかった。</p>
+<h4>引退（<code>RETIRED</code>）と不可（<code>BLOCKED</code>）</h4>
+<table>
+<tr><th></th><th>内容</th></tr>
+<tr><td><code>RETIRED[&#x27;charge&#x27;]</code></td><td><strong>描画上の形式電荷</strong>を読んでいた。ZINC は<strong>予測プロトン化状態</strong>で分けている。<strong>別の量が同じ語を共有していた</strong></td></tr>
+<tr><td><code>BLOCKED[&#x27;library_charge_slice&#x27;]</code></td><td>スライスは knob ではなくダウンロード時の選択。一級アミン含有率 0.21% / 2.46% / 13.06%</td></tr>
+<tr><td><code>BLOCKED[&#x27;target_identity&#x27;]</code></td><td>標的を記録したデータが無い。全ラベルが二値</td></tr>
+<tr><td><code>BLOCKED[&#x27;globularity&#x27;]</code></td><td>3D 配座が必要。<strong>実装済みだが 300件サンプルで 100% 通過、中央値 0.075、最大 0.247（閾値 0.25）</strong></td></tr>
+</table>
+<p><strong>引退した knob を含む旧レコードは <code>knobs.Retired</code> 例外で拒否する。</strong></p>
+<p>黙って knob を落とすと、記録が別の screening の記述に変わる。</p>
+<h3>3.3 <code>sweep.py</code>（約310行）— K仕様を1パス</h3>
+<h4>HyperLogLog</h4>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>HLL_P</code></td><td><strong>12</strong></td></tr>
+<tr><td><code>HLL_M</code></td><td><strong>4096</strong> = 1 &lt;&lt; 12</td></tr>
+<tr><td><code>HLL_ALPHA</code></td><td>0.7213 / (1 + 1.079/4096)</td></tr>
+<tr><td>状態</td><td><strong>4,152 B / 仕様</strong>（レジスタ 4,096 B + α）</td></tr>
+</table>
+<pre>
+digest = hashlib.blake2b(text.encode(), digest_size=8).digest()
+value = int.from_bytes(digest, &quot;big&quot;)
+index = value &gt;&gt; (64 - HLL_P)          # 上位12ビットでレジスタ選択
+rest  = (value &lt;&lt; HLL_P) &amp; ((1 &lt;&lt; 64) - 1)
+rank  = 1 if rest == 0 else 64 - rest.bit_length() + 1
+if rank &gt; self.registers[index]: self.registers[index] = rank
+</pre>
+<p>レジスタに空きがあるうちは<strong>線形計数</strong>が正確な推定量なので、</p>
+<p><code>raw &lt;= 2.5 * HLL_M and zeros</code> で切り替える。</p>
+<h4>Welford（<code>Running</code>）</h4>
+<p>平均と分散を値を保持せずに更新する。MW と回転結合の分布に使う。</p>
+<h4>1パスの構造</h4>
+<pre>
+for text in iter_library(part_dir, limit):
+    mol = smiles_mod.parse(text)
+    weight    = Descriptors.MolWt(mol)
+    rotatable = rdMolDescriptors.CalcNumRotatableBonds(mol)
+    hits = {name: bool(body[&quot;test&quot;](mol)) for name, body in nitrogen_settings.items()}
+    # scaffold は遅延。生存者だけが払う
+    for variant in variants:
+        variant.consider(mol, weight, rotatable, scaffold_of, hits)
+</pre>
+<p><strong>scaffold 計算は分子あたりコストの 27.6%</strong> を占め、生存者は測定スライスの 2.5% しか</p>
+<p>いなかった。<strong>全分子で計算すると実行の4分の1を、どの仕様も残さない行に使う。</strong></p>
+<p>最初に要求した variant まで遅延する。</p>
+<h4>変種の列挙</h4>
+<p><code>enumerate_variants(baseline, only_looser=True)</code> は <code>knobs_mod.ORDER</code> から</p>
+<p>直積を取り、<strong>baseline より厳しい組み合わせを除外</strong>する。</p>
+<p>3 knob × 3 設定 = <strong>27</strong>（charge 引退前は 54）。</p>
+<h3>3.4 <code>propose.py</code>（約320行）— 提案</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>SKETCH_RELATIVE_ERROR</code></td><td><strong>0.016</strong>（2^12 レジスタでの標準誤差。本リポジトリで4基数について 0.29%〜1.24% と実測）</td></tr>
+<tr><td><code>UNCERTAIN_BAND</code></td><td><strong>0.048</strong> = 3 × 0.016</td></tr>
+<tr><td><code>FRONTIER</code></td><td><strong>8</strong></td></tr>
+</table>
+<h4>3値分類（sketch のみ）</h4>
+<pre>
+estimate &gt;= required × (1 + 0.048)  → feasible
+estimate &lt;= required × (1 - 0.048)  → infeasible
+それ以外                              → uncertain
+</pre>
+<h4>正確カウントの対象</h4>
+<table>
+<tr><th></th><th>なぜ</th></tr>
+<tr><td>uncertain 帯の全仕様</td><td>sketch が構成上決められない</td></tr>
+<tr><td><strong>frontier に出る全仕様（上限8）</strong></td><td>人が trade を比較する数字。<strong>2行の間の 1.6% の差は差として読まれる</strong></td></tr>
+<tr><td>推奨される勝者</td><td>—</td></tr>
+</table>
+<p><strong>3σ は確率的保証で、27仕様あると1回の実行でどれかが帯の外に出る確率は無視できない。</strong></p>
+<p>frontier を無条件に数えることで、読み手が見る数字から帯が消える。</p>
+<h4>1仕様ずつ、都度捨てる（禁忌84）</h4>
+<p><strong>frontier 8件は「正確パスの回数」の上限で、「状態量」の上限ではない。</strong></p>
+<p>8セットを同時に持つと <code>8 × 46,437骨格 × 127.4 B ≈ 45 MB</code> で、sketch が避けている額と</p>
+<p>ほぼ同じ。逐次実行でピークは最大の1仕様分（<strong>約 5.6 MiB</strong>）。</p>
+<p><code>exact_scaffold_count</code> は<strong>件数だけを返す</strong>ので、呼び出し側が集合を蓄積できない。</p>
+<h4>スコープ検査（禁忌85）</h4>
+<pre>
+sweep が読んだ limit ≠ 正確パスの limit  → 停止
+骨格数 &gt; 生存数                           → 落ちる
+</pre>
+<p>後者は<strong>このクラス全体を捕まえる最も安い検査。</strong></p>
+<h4>順位（重み付きスコアを使わない）</h4>
+<pre>
+def rank(row):
+    return (row[&quot;steps_from_baseline&quot;],
+            0 if row[&quot;provenance&quot;][&quot;weakest&quot;] == &quot;published&quot; else 1,
+            -row[&quot;survivors&quot;])
+</pre>
+<p><strong>辞書式のみ。</strong>第3項は決定的タイブレークであって選好ではない。</p>
+<h3>3.5 <code>provenance.py</code>（約280行）— ライブラリは入力</h3>
+<table>
+<tr><th>スライス</th><th>予測電荷</th></tr>
+<tr><td>N</td><td>0（中性）</td></tr>
+<tr><td>O</td><td>+1</td></tr>
+<tr><td>M</td><td>−1</td></tr>
+<tr><td>P</td><td>+2 以上</td></tr>
+</table>
+<pre>
+_SLICE = re.compile(r&quot;-([NOMP])(?:\.[a-z])?\.smi\.gz$&quot;)
+</pre>
+<p><strong>世代の文字（<code>.x</code>）を許容する形。</strong>改名で世代を落とすと、出自を読む仕組みが</p>
+<p>自分の改名で動かなくなる（禁忌67）。</p>
+<h4>矛盾検査の根拠（Richter 2017 の逐語値）</h4>
+<pre>
+ENTRY_ACCUMULATION_BY_CHARGE = {
+    &quot;positive&quot;: {&quot;accumulated&quot;: 12, &quot;total&quot;: 41},
+    &quot;neutral&quot;:  {&quot;accumulated&quot;:  0, &quot;total&quot;: 39},
+    &quot;negative&quot;: {&quot;accumulated&quot;:  0, &quot;total&quot;: 20},
+}
+</pre>
+<h4>inert 検出</h4>
+<p><strong>ある knob だけが違う仕様ペアを全部比べ、生存数が全組で同一なら inert。</strong></p>
+<p><code>charge</code> はこの run で 27/27 同一だった。</p>
+<blockquote><strong>何も変えない knob を制約として報告してはいけない。</strong>読み手はフィルタが</blockquote>
+<blockquote>走ったと信じる。</blockquote>
+<h3>3.6 <code>screenable.py</code>（約640行）— 何が establish できるか</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>MIN_DISTINCT_SHARE</code></td><td><strong>0.50</strong></td></tr>
+<tr><td><code>MAX_TIE_SHARE</code></td><td><strong>0.05</strong></td></tr>
+<tr><td><code>EXTRAPOLATION_BELOW</code></td><td><strong>0.40</strong></td></tr>
+<tr><td><code>SAMPLE</code></td><td><strong>1200</strong></td></tr>
+<tr><td><code>SAMPLE_SEED</code></td><td><strong>0</strong></td></tr>
+</table>
+<p><strong>閾値は導出していない。</strong>最近傍 Tanimoto の 0.4〜0.6 が実務の慣行で、</p>
+<p>0.4 はその下端。<strong>集合を「内側」と言う方向に誤るように選んで、書き留めた。</strong></p>
+<h4>rankability — <strong>ここで Rust エンジンが起動する</strong></h4>
+<p class='num'><b>1.</b> 生存者を seed 0 でサンプル（50件未満なら <code>not_measurable</code>）</p>
+<p class='num'><b>2.</b> 指紋（Morgan radius 4、2048 ビット）を numpy ブロックに</p>
+<p class='num'><b>3.</b> 一時ディレクトリに parquet パートを書き、<code>stats.json</code> を作る</p>
+<p class='num'><b>4.</b> <strong><code>engine/target-fp/release/engine</code> を subprocess 起動</strong></p>
+<p class='num'><b>5.</b> スコアの distinct 率と同点率から判定</p>
+<h4>applicability</h4>
+<p>各生存者の<strong>訓練集合への最近傍 Tanimoto</strong>を取り、中央値が 0.4 以上なら</p>
+<p><code>answerable</code>、未満なら <code>answerable_but_extrapolating</code>。</p>
+<h4>対照（<code>CONTROLS</code>）</h4>
+<table>
+<tr><th>対照</th><th>測定</th><th>結果</th></tr>
+<tr><td><code>tanimoto_pipeline</code></td><td>IMI-COMBINE から300件を抜き、残り21,752 への最大 Tanimoto</td><td>中央値 <strong>0.747</strong>、p5 0.358、最大 1.000、閾値以上 <strong>94.0%</strong> → <strong>pass</strong></td></tr>
+<tr><td><code>globularity</code></td><td>GramNegAccum table4 の68件を著者の <code>glob</code> 列と比較</td><td>r = <strong>0.529</strong>、中央値 0.156 対 0.181、範囲 [0.037, 0.343] 対 [0.046, 0.450]、閾値一致 82.4% → <strong>「範囲については pass、分子単位では弱い」</strong></td></tr>
+</table>
+<p><strong>globularity の対照には留保が明記されている</strong> — 12/68 が 0.25 閾値で不一致、</p>
+<p>配座で最大 0.236 動く。<strong>分布に使い、単一化合物には使わない。</strong></p>
+<h3>3.7 <code>what_to_measure.py</code>（約420行）— 拒否の次の一歩</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>COVERED_AT</code></td><td><strong>0.40</strong>（screenable の適用範囲閾値と同じ）</td></tr>
+<tr><td><code>BAND</code></td><td>(0.30, 0.40, 0.50, 0.60)</td></tr>
+<tr><td><code>MAX_MOLECULES</code></td><td><strong>6000</strong>（Butina は全距離行列を保持。禁忌11）</td></tr>
+<tr><td><code>SAMPLE_SEED</code></td><td><strong>0</strong></td></tr>
+</table>
+<h4>変換</h4>
+<pre>
+適用範囲の検定   各化合物に閾値内の訓練近傍があるか
+       ↓ 同じ閾値で
+クラスタリング   近傍を持たない領域 = 1クラスタ
+       ↓
+出力             クラスタ数 = 測るべき化合物数
+</pre>
+<p><strong>Butina は距離で切り、適用範囲は類似度で判定する。</strong>同じ 0.4 が逆向きなので、</p>
+<p><code>cutoff = 1.0 - covered_at</code> = <strong>0.6</strong> で切らないと、適用範囲の検定が既に</p>
+<p>「覆われている」と見なす近傍を数えてしまい、<strong>買う化合物数がおよそ倍になる。</strong></p>
+<h4>出力に必ず付くもの</h4>
+<p class='bullet'>計算した指紋の名前（<code>Morgan radius 4, 2048 bits (ECFP8)</code>）</p>
+<p class='bullet'>閾値感度（帯での変動倍率）</p>
+<p class='bullet'><strong>標的が無いこと</strong>（ヒットセットではなくカタログの部分集合）</p>
+<p class='bullet'><strong>代表化合物を選んでいないこと</strong>と、選ぶなら Butina 重心であること</p>
+<p class='bullet'><strong>被覆の要件であって精度の約束ではない</strong>こと</p>
+<h3>3.8 <code>feasible.py</code>（約270行）— 4値判定</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>EXTRAPOLATION_BELOW</code></td><td><strong>0.40</strong></td></tr>
+<tr><td><code>SAMPLE</code></td><td><strong>3000</strong></td></tr>
+</table>
+<pre>
+answerable                      中央値 &gt;= 0.40
+answerable_but_extrapolating    中央値 &lt;  0.40
+not_answerable                  訓練構造が読めない / ライブラリが読めない
+undecidable                     （label_available 経由）
+</pre>
+<h4>必要件数（半幅 1/√n）</h4>
+<pre>
+n = observed_n * (observed_half_width / margin) ** 2
+</pre>
+<p>禁忌56：<strong>必要なデータ量は「問い」を決めないと出ない。</strong>同じ式から、偶然超えを</p>
+<p>言うには約150、2方向の区別には別の数が出る。</p>
+<h4>SMARTS は registry から読む（2026-10-11 に修正）</h4>
+<p>降格済みの <code>candidates.py</code> から引いていた。<strong>一級アミンの定義が2箇所にあった</strong></p>
+<p>（禁忌31 と同型）。限界値 5 / 450 / 600 も registry から読む。</p>
+<h3>3.9 <code>inventory.py</code>（220行）— 証拠を<strong>ファイルから</strong>読む</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>MAX_LABEL_CARDINALITY</code></td><td><strong>24</strong>（これ以下の distinct 値を持つ文字列列をラベルと見なす）</td></tr>
+<tr><td><code>SAMPLE_ROWS</code></td><td><strong>20000</strong></td></tr>
+<tr><td><code>STRUCTURE_COLUMNS</code></td><td><code>smiles</code> <code>mol</code> <code>inchikey</code> <code>skeleton</code> <code>scaffold</code> <code>zinc_id</code></td></tr>
+</table>
+<blockquote><strong>データセットの名前も文書中の記述も、中身の証拠として受け取らない。</strong></blockquote>
+<blockquote>IMI-COMBINE がまさにそれで、活性モデルが長らく「結合モデル」と記述された後に、</blockquote>
+<blockquote><strong>実際に見たら標的の記録が無い二値ラベルだった。</strong></blockquote>
+<p><strong>基数が有用な信号。</strong>distinct 値が数個の文字列列はラベル、行数と同数なら識別子か構造。</p>
+<p><strong>二値のラベル列は、データセットが何と呼ばれていようと標的を解決できない。</strong></p>
+<h3>3.10 <code>render.py</code>（約390行）— 表示層</h3>
+<p><strong>識別子を画面に出さない。記録（JSON）は識別子のまま。</strong></p>
+<table>
+<tr><th></th><th>画面</th><th>記録</th></tr>
+<tr><td></td><td><code>under 450 Da</code></td><td><code>mw_under_450</code></td></tr>
+<tr><td></td><td><code>an unhindered primary amine</code></td><td><code>primary_amine</code></td></tr>
+<tr><td></td><td><code>ZINC22 tranche H29P240, -O slice (+1 at pH 7.4), 636,669 compounds</code></td><td><code>data/work/zinc_O</code></td></tr>
+<tr><td></td><td><code>cannot be answered</code></td><td><code>not_answerable</code></td></tr>
+</table>
+<p><strong>文言が無い設定は推測せず識別子のまま出す。</strong>綴りから組み立てた英文は、</p>
+<p>数字を間違えていても流暢に読めてしまう。</p>
+<p><code>tests/test_render.py</code>（26本）が<strong>文言中の数字を registry の <code>limit</code> と照合</strong>する。</p>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>WIDTH</code></td><td><strong>78</strong>（折り返し幅）</td></tr>
+</table>
+<h2>4. 計測・検証〔計測〕</h2>
+<p><strong>製品からは呼ばれない。</strong>§4 の確定値を作った経路で、記録として残っている。</p>
+<h3>4.1 <code>folds.py</code>（303行）— 分割</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>PART_ROWS</code></td><td>8192（パート行数 <strong>かつ</strong> <code>row_group_size</code>）</td></tr>
+<tr><td><code>MORGAN_RADIUS</code></td><td><strong>2</strong></td></tr>
+<tr><td><code>MORGAN_BITS</code></td><td>2048</td></tr>
+<tr><td><code>BUTINA_CUTOFF</code></td><td><strong>0.4</strong>（Tanimoto <strong>距離</strong>）</td></tr>
+<tr><td><code>BUTINA_MAX_MOLECULES</code></td><td><strong>6000</strong>（超えたら拒否）</td></tr>
+</table>
+<p><strong>分割はグループ単位で、行単位では絶対に行わない。</strong></p>
+<blockquote>scaffold が fold をまたがない。<strong>fold の半分より大きい scaffold を先に配置</strong>するので、</blockquote>
+<blockquote>どの fold に入るかを支配できない。</blockquote>
+<p><strong>Butina を使う理由（禁忌12）：</strong>CHAMP では上位2 scaffold（ベンゼン単環・環なし）が</p>
+<p><strong>52.7%</strong> を占め、fold に分けられない。指紋でクラスタリングすると</p>
+<p><strong>グループサイズに上限がかかる。</strong></p>
+<p><strong>O(n²) の距離行列を保持する</strong>ので 6,000件超で OOM（禁忌11）。拒否して理由を言う。</p>
+<p><strong>seed は1つの整数</strong>で <code>random.Random</code> を駆動する。<code>folds.py --repeat</code> がそれ。</p>
+<h3>4.2 <code>cv.py</code>（237行）— 反復 k-fold CV</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>ENGINE</code></td><td><code>OCCAM_ENGINE</code> 環境変数で上書き可</td></tr>
+<tr><td><code>LEARNING_RATES</code></td><td><strong>(0.05, 0.1, 0.25, 0.5, 1.0, 2.0)</strong> — validation fold で掃引する6候補</td></tr>
+</table>
+<h4>AUC（<code>exact_auc</code>）</h4>
+<p><strong>midrank Mann–Whitney。</strong>同点ランは <code>average_rank = (i + j) / 2 + 1</code>。</p>
+<h4>CI（<code>bootstrap_ci(values, rounds=20000, seed=0)</code>）</h4>
+<p><strong>非パラメトリックのパーセンタイル・ブートストラップ。</strong>ただし</p>
+<p><strong>行ではなく反復の平均に対して</strong>取る。</p>
+<h4>seed の二重の役割</h4>
+<blockquote><code>repeat ∈ range(args.repeats)</code> が<strong>同時に</strong> <code>folds_mod.build</code> に渡す</blockquote>
+<blockquote>fold 割り当ての seed であり、sklearn ベースラインの <code>random_state</code> でもある。</blockquote>
+<h3>4.3 <code>bench.py</code>（183行）— 21 seed の AUC</h3>
+<table>
+<tr><th>既定</th><th>値</th></tr>
+<tr><td><code>--seeds</code></td><td><strong>21</strong></td></tr>
+<tr><td><code>--epochs</code></td><td><strong>1</strong></td></tr>
+<tr><td><code>--bulk-size</code></td><td><strong>1024</strong></td></tr>
+<tr><td><code>--evaluate</code></td><td><code>test</code></td></tr>
+</table>
+<p>**8:1:1 ホールドアウトを多数の seed で回す。記述子は1回だけ計算し、seed ごとに</p>
+<p>分割だけ引き直す。**</p>
+<p><strong>不確かさは平均 ± 標本標準偏差（n−1）のみ。ブートストラップも CI も検定もしない。</strong></p>
+<blockquote><code>exact_auc</code> だけが例外で、<strong>全スコアをメモリに読む</strong>とコメントに明記してある。</blockquote>
+<p><strong>M1 の 0.8382 ± 0.0512 はここから出た。</strong><code>--epochs 10</code> で測り直した値</p>
+<p>（旧記録 0.8383 はエポック数が書かれていなかった。禁忌34・40）。</p>
+<h3>4.4 <code>stream_gbdt.py</code>（341行）— 有界メモリ GBDT</h3>
+<p>**「O(1) メモリの制約」と「線形モデルであること」のどちらが 0.0540 の AUC 差を</p>
+<p>払っているか**を切り分けるために書かれた。</p>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>BINS</code></td><td><strong>255</strong>（ヒストグラム配列は 256幅、探索は b = 0..254）</td></tr>
+<tr><td><code>TREES</code></td><td>100</td></tr>
+<tr><td><code>MAX_LEAVES</code></td><td><strong>31</strong>（<code>len(tree.value) &lt; 2 * max_leaves - 1</code> = 61ノードで強制）</td></tr>
+<tr><td><code>LEARNING_RATE</code></td><td>0.1</td></tr>
+<tr><td><code>MIN_SAMPLES_LEAF</code></td><td>20</td></tr>
+<tr><td><code>L2</code></td><td><strong>0.0</strong></td></tr>
+<tr><td><code>PRE_BINS</code></td><td><strong>4096</strong>（ストリームから分位点の境界を導く粗ヒストグラム）</td></tr>
+<tr><td><code>MAX_DEPTH</code></td><td><code>None</code> — <strong>宣言されているがファイル内で一度も読まれない</strong></td></tr>
+</table>
+<h3>4.5 <code>m3_order.py</code>（449行）— 順序入れ替え〔撤回済み〕</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>ENGINE</code></td><td><code>{&quot;desc&quot;: target/release/engine, &quot;fp&quot;: target-fp/release/engine}</code> — <strong>2ビルド</strong></td></tr>
+<tr><td><code>BUDGETS</code></td><td><strong>(100, 500, 1000, 5000, 10000)</strong> ＋ <code>len(pool)</code> を6番目に追加</td></tr>
+<tr><td><code>TARGET_COUNTS</code></td><td>(1, 5, 20)</td></tr>
+<tr><td><code>RANDOM_REPEATS</code></td><td>20</td></tr>
+<tr><td><code>BINDING_KEEP</code></td><td><strong>0.25</strong> — 結合評価を通る割合。出力数は <code>m = max(1, round(budget * 0.25))</code></td></tr>
+<tr><td><code>MAX_TIE_SHARE</code></td><td><strong>0.05</strong></td></tr>
+<tr><td><code>MIN_DISTINCT_SHARE</code></td><td><strong>0.20</strong></td></tr>
+</table>
+<p><strong>M3 の主張は撤回されている。</strong><code>sh()</code> <code>stats_from()</code> <code>write_parts()</code> は共通部品として</p>
+<p><code>screenable.py</code> が今も使う。<strong><code>#lock_0</code> あり。</strong></p>
+<h3>4.6 <code>transfer.py</code>（195行）— 転移検証</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>BOOTSTRAP_ROUNDS</code></td><td><strong>20000</strong>（<code>inclusion.test</code> と <code>answerable.main</code> が<strong>実行時に書き換える</strong>）</td></tr>
+<tr><td><code>ENGINE</code></td><td><code>--engine</code> で <code>globals()[&quot;ENGINE&quot;]</code> ごと差し替え可</td></tr>
+</table>
+<p><strong>基準は実行前に宣言した。</strong>ただし 2026-10-09 に<strong>判定を撤回</strong>（数字は有効）。</p>
+<p>宣言した基準（CI 下限 &gt; 0.5）が評価件数と交絡していた。</p>
+<h3>4.7 <code>inclusion.py</code>（445行）— 包含関係 → 転移の向き〔支持されず〕</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>DEFAULT_SOURCE</code></td><td><code>B3DB_classification_feat/features.parquet</code></td></tr>
+<tr><td><code>ASYMMETRY_FACTOR</code></td><td><strong>3.0</strong>（この比以上で二次判定が予測を出す）</td></tr>
+<tr><td><code>SPLIT_SEED</code></td><td>0</td></tr>
+<tr><td><code>MIN_SUBSET</code></td><td><strong>150</strong> — 「ドメインと両クラスに足りるだけの分子が各辺に要る」</td></tr>
+<tr><td><code>CONTROL_PAIR</code></td><td><strong><code>&quot;random_halves&quot;</code></strong> — 主たる符号検定から<strong>除外される対照</strong></td></tr>
+<tr><td><code>BOUNDARY_MARGIN</code></td><td><strong>0.05</strong> — 「CI 下限が 0.5 にこれだけ近いと、判定がブートストラップ回数に左右される」</td></tr>
+</table>
+<h4>ソートしてからシャッフルする</h4>
+<pre>
+big.sort(); small.sort()
+rng = random.Random(seed); rng.shuffle(big); rng.shuffle(small)
+</pre>
+<blockquote><strong>シャッフルの前にソートする。</strong>順序が dict の順ではなく seed に依存するように。</blockquote>
+<p><strong>結果は「反証」ではなく「判定不能」。</strong>事前登録は <code>docs/inclusion_predictions.json</code>。</p>
+<h3>4.8 <code>answerable.py</code>（256行）— 箱の外は答えられないのか〔否定〕</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>MIN_SIDE</code></td><td><strong>50</strong>（これ未満の辺は測定不能）</td></tr>
+</table>
+<p><strong>差のブートストラップ CI を取る。</strong>2群は互いに素なので差が素直に出る。</p>
+<blockquote>最初は2つの CI の重なりで判定していたが、<strong>それは禁忌44 そのもの</strong>なので差し替えた</blockquote>
+<blockquote>（→ 禁忌54：自分が書いた禁忌を次の設計で踏む）。</blockquote>
+<p><strong>結果：covered が有意に良い方向は 12 中 0。</strong></p>
+<h3>4.9 <code>coverage.py</code>（240行）— カバレッジ</h3>
+<table>
+<tr><th>定数</th><th>値</th><th>宣言</th></tr>
+<tr><td><code>NON_FEATURE_COLUMNS</code></td><td><code>(&quot;label&quot;, &quot;scaffold&quot;, &quot;smiles&quot;, &quot;inchikey&quot;, &quot;skeleton&quot;, &quot;tables&quot;)</code></td><td>—</td></tr>
+<tr><td><code>BOX_LOW_PERCENTILE</code></td><td><strong>1</strong></td><td><strong>「実行前に固定。CRITERIA 参照」</strong></td></tr>
+<tr><td><code>BOX_HIGH_PERCENTILE</code></td><td><strong>99</strong></td><td>同</td></tr>
+<tr><td><code>NEIGHBOUR_PERCENTILE</code></td><td><strong>95</strong></td><td>訓練集合内部の leave-one-out 最近傍距離の分位点</td></tr>
+</table>
+<table>
+<tr><th>指標</th><th>定義</th></tr>
+<tr><td><strong>box</strong></td><td>全記述子が訓練側の 1〜99 パーセンタイル内。<strong>必要条件にすぎない</strong></td></tr>
+<tr><td><strong>neighbour</strong></td><td>標準化記述子空間での最寄り訓練点までの距離が、訓練セット内部の最近傍距離分布の <strong>p95 以下</strong></td></tr>
+<tr><td><strong>covered</strong></td><td>両方</td></tr>
+</table>
+<p><strong>最近傍基準に変えると CHAMP は 6.2% → 0.6%（10分の1）。</strong>箱だけを報告していたのが</p>
+<p>誤りだった（禁忌36）。</p>
+<p><strong>ただし <code>answerable.py</code> が直接検定した結果、membership は AUC を予測しない。</strong></p>
+<p><strong>距離の記述としては有効、能力の上限としては書けない。</strong></p>
+<h3>4.10 <code>globularity.py</code>（191行）— eNTRy 第2条件〔このライブラリでは無効〕</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>ENTRY_MAX_GLOBULARITY</code></td><td><strong>0.25</strong>（Richter 2017 の閾値）</td></tr>
+<tr><td><code>EMBED_SEED</code></td><td><strong>0xC0FFEE</strong>（<code>AllChem.ETKDGv3().randomSeed</code>。配座生成が再現可能）</td></tr>
+</table>
+<p><strong>定義：</strong>原子座標の共分散行列の条件数の逆数。1 が完全な球、0 が平板または線状。</p>
+<p><strong>ベンゼン 0、アダマンタン 1。</strong>論文の観測値：アンピシリン 0.12、</p>
+<p>ペニシリン G 0.17、デオキシニボマイシン 0.02。</p>
+<p><strong>ZINC で 300件サンプル中 100% 通過</strong>（中央値 0.075、最大 0.247、閾値 0.25）。</p>
+<p><strong>適用しても何も変わらない。</strong>「適用した」と書くとコードについては真、</p>
+<p>screening については偽（禁忌68）。</p>
+<p><strong>配座で中央値 0.033、最大 0.236 動く</strong>（禁忌69）。</p>
+<h3>4.11 <code>m3_models.py</code>（66行）— 各モデル単体の AUC</h3>
+<blockquote><strong>推論的な統計は無い。</strong>検定もCIもブートストラップも fold 分割も RNG seed も無い。</blockquote>
+<h2>5. 取り込み〔計測〕</h2>
+<h3>5.0 全体に共通する不変量</h3>
+<table>
+<tr><th></th><th>値</th><th>なぜ</th></tr>
+<tr><td><code>PART_ROWS</code></td><td><strong>8192</strong>（全取り込みモジュール共通）</td><td>1パート1行グループ。<strong>不変条件2</strong></td></tr>
+<tr><td><code>MAX_PARSE_FAILURE_RATE</code></td><td><strong>0.01</strong></td><td>これを超えたら<strong>データではなく読み手が疑わしい</strong></td></tr>
+<tr><td><code>MAX_RADICAL_RATE</code></td><td><strong>0.01</strong></td><td>不対電子が残った分子の割合。<strong>方言の不一致のうちエラーを出さない側</strong></td></tr>
+</table>
+<p><strong><code>data/raw/</code> は読むだけ。</strong>生成物は <code>data/work/</code>。</p>
+<h3>5.1 <code>smiles.py</code>（136行）— 唯一のパーサ</h3>
+<p><strong>修復する方言は2種類。</strong>どちらも GramNegAccum の表で実際に出た。</p>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>_BRACKET_CHARGE_FIRST</code></td><td><code>re.compile(r&quot;\[([A-Z][a-z]?)(@{0,2})([+-]\d*)(@{0,2})(H\d*)\]&quot;)</code></td></tr>
+<tr><td><code>ORGANIC_SUBSET</code></td><td><code>frozenset((5, 6, 7, 8, 15, 16, 9, 17, 35, 53))</code> = B, C, N, O, P, S, F, Cl, Br, I</td></tr>
+</table>
+<p class='num'><b>1.</b> <strong>ブラケット内のトークン順序</strong> — <code>[N+H2]</code>、<code>[N+@@H]</code>。電荷が水素数より前</p>
+<p class='num'><b>2.</b> <strong>水素数の未指定</strong> — 既定原子価から再推定</p>
+<p><strong><code>ORGANIC_SUBSET</code> に限る理由（禁忌30）：</strong>原子価則を金属に当てると、B3DB の</p>
+<p><code>[Li]</code> が <code>[LiH]</code> に書き換わった。<strong>別の化合物になる。</strong></p>
+<p><strong>修復は数えて出す</strong>（禁忌32）。「何件直したか」を summary に出さないと、</p>
+<p>修復が効いているのか対象が無いのかが分からない。</p>
+<p><strong><code>#lock_0</code> あり。</strong></p>
+<h3>5.2 <code>ingest.py</code>（約140行）— 汎用 TSV/CSV</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>DIALECTS</code></td><td><code>.tsv</code> → <code>delimiter=&quot;\t&quot;</code>、<code>.csv</code> → <code>delimiter=&quot;,&quot;</code>。<strong>両方 <code>quoting=csv.QUOTE_MINIMAL, strict=True</code></strong></td></tr>
+<tr><td><code>CHUNK_ROWS</code></td><td>8192</td></tr>
+</table>
+<p><strong><code>QUOTE_NONE</code> にしてはいけない</strong>（禁忌7）。TSV も引用符を解釈するので、</p>
+<p>改行を含むレコードが壊れる。<code>strict=True</code> は不正な引用を<strong>そのレコードのエラー</strong>に</p>
+<p>する — 黙って後続行と結合しない。</p>
+<p><strong><code>data/raw/</code> 直下の <code>.tsv</code> / <code>.csv</code> だけを取る</strong>（サブディレクトリは専用の取り込みが扱う）。</p>
+<p>走査結果にディレクトリが混ざらないことを <code>tests/test_contraindications.py</code> が固定（禁忌13）。</p>
+<h3>5.3 <code>ingest_zinc.py</code>（約160行）— ZINC22 tranche</h3>
+<table>
+<tr><th>形式</th><th>タブ区切り2列（SMILES、ZINC id）、<strong>ヘッダ無し</strong></th></tr>
+<tr><td>誤り</td><td>計画書は「ヘッダあり」と書いていた。<strong>1分子失う</strong></td></tr>
+<tr><td>ディレクトリ名</td><td><code>H</code> の数字が<strong>重原子数そのもの</strong></td></tr>
+<tr><td>1トランシェの幅</td><td>zinc-22x H29P240-N は <strong>350〜596 Da</strong></td></tr>
+</table>
+<p><strong>件数を3通りで報告する</strong>（禁忌25）：読んだ行数、パースできた分子数、</p>
+<p>distinct な InChIKey 骨格数。<strong>これらは違う値で、混同が実際に起きた。</strong></p>
+<p><code>MAX_PARSE_FAILURE_RATE = 0.01</code>。実測は zinc-22x H29P240-N の 144,929分子で <strong>0.000%</strong>。</p>
+<p><code>parts.json</code> に <code>source</code> / <code>source_name</code> / <code>manifest</code> / <code>parts</code> / <code>rows_written</code> /</p>
+<p><code>lines_read</code> / <code>molecules_parsed</code> / <code>repairs</code> / <code>dropped</code> を記録。</p>
+<h3>5.4 <code>ingest_champ.py</code>（約170行）— xlsx を直接読む</h3>
+<p><strong>SpreadsheetML を zip から XML で読む。</strong>pandas も openpyxl も使わない。</p>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>NS</code></td><td><code>{http://schemas.openxmlformats.org/spreadsheetml/2006/main}</code></td></tr>
+<tr><td><code>SHEETS</code></td><td><code>sheet13.xml</code> → <code>wt</code>（F列）／ <code>sheet16.xml</code> → <code>pmbn_wt</code>（E）, <code>porinated_wt</code>（F）／ <code>sheet18.xml</code> → <code>porinated_wt_check</code>（E）, <code>porinated_tolc_ko</code>（F）</td></tr>
+<tr><td><code>SMILES_COL</code></td><td><strong><code>D</code></strong>（全シート共通）</td></tr>
+<tr><td><code>HEADER_ROWS</code></td><td><strong>2</strong></td></tr>
+<tr><td><code>LABEL_SOURCE</code></td><td><strong><code>wt</code></strong></td></tr>
+</table>
+<blockquote><strong>シートごとにグループ化している理由：値は同一シート内でのみ比較可能。</strong></blockquote>
+<h3>5.5 <code>ingest_gna.py</code>（約150行）— GramNegAccum</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>TABLES</code></td><td><code>((1, &quot;smiles&quot;), (2, &quot;smiles&quot;), (3, &quot;smiles&quot;), (4, &quot;mol&quot;))</code></td></tr>
+<tr><td><code>MAX_RADICAL_RATE</code></td><td><strong>0.01</strong></td></tr>
+</table>
+<p><strong>table 5 と 6 には Accum 列が無い。</strong>だから取らない。</p>
+<p><strong>ラジカル率の実測が決定的だった。</strong></p>
+<pre>
+py/smiles.py あり : 0.000%
+py/smiles.py なし : 38.2%
+</pre>
+<p><strong>38.2% の分子が不対電子を持ったまま通っていた。</strong><code>[N+]</code> が「水素0個の窒素カチオン」</p>
+<p>と読まれ、一級アミンのパターンに当たらない。<strong>エラーは出ない。記述子が静かに間違う</strong></p>
+<p>（禁忌27）。</p>
+<p>件数の内訳が 368 / 234 / 217 / <strong>197</strong> と変わるのがこのデータ（禁忌25）。</p>
+<h3>5.6 <code>ingest_imi.py</code>（約130行）— IMI-COMBINE</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>SRC</code></td><td><code>data/raw/imi_combine/data/processed/combined_bioassay_data.tsv</code></td></tr>
+<tr><td><code>GP</code></td><td><strong><code>gram-positive_label</code></strong> — 結合の代理</td></tr>
+<tr><td><code>GN</code></td><td><strong><code>gram-negative_label</code></strong> — true hit（結合 AND 侵入）</td></tr>
+</table>
+<p><strong>両ラベルを持つ行だけを残すので 22,051行。</strong>全ソースは 74,202行。</p>
+<p><strong>同じラベルの件数がスコープで動く</strong>（禁忌81）：gram-positive の active は</p>
+<p>全ソースで 17,530、両ラベル保有で <strong>8,601</strong>。</p>
+<h3>5.7 <code>descriptors.py</code>（約200行）— 9記述子</h3>
+<pre>
+FEATURES = (&quot;mw&quot;, &quot;logp&quot;, &quot;tpsa&quot;, &quot;hbd&quot;, &quot;hba&quot;, &quot;rotb&quot;,
+            &quot;aromatic_rings&quot;, &quot;basic_nitrogen&quot;, &quot;fsp3&quot;)
+</pre>
+<p><strong>この順序で固定。</strong><code>engine/src/carry.rs</code> が <code>F = 9</code> として鏡像を持つ。</p>
+<p><code>BASIC_NITROGEN</code> の SMARTS は <code>knobs.py</code> と同一パターン。コメントに経緯がある：</p>
+<blockquote><strong>形式電荷を最初に試したが、CHAMP 全体で恒等的に 0 で、信号を一切持たなかった。</strong></blockquote>
+<blockquote>eNTRy 自身の一級アミンパターンも CHAMP 全体で 0。だからこの広いパターンが</blockquote>
+<blockquote>「イオン化可能窒素」の最も近い使える代替。</blockquote>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>MAX_PARSE_FAILURE_RATE</code></td><td>0.01</td></tr>
+<tr><td><code>MAX_RADICAL_RATE</code></td><td>0.01。<strong>実測：CHAMP / IMI / GNA が 0.000%、B3DB が 0.013%、<code>smiles.py</code> 無しの GNA が 38.2%。1% が2つの場合を余裕を持って分ける</strong></td></tr>
+<tr><td><code>SPLITS</code> / <code>SPLIT_FRACTIONS</code></td><td><strong>定義されているが本ファイル内で参照されていない。</strong>分割は <code>folds.py</code> の仕事</td></tr>
+</table>
+<p><strong><code>#lock_0</code> あり。</strong>エンジンがやってはいけない仕事（SMILES を読む、ファイル全体に</p>
+<p>わたって記述子を計算する）をここが担う。</p>
+<h3>5.8 <code>fingerprints.py</code>（約70行）— ECFP8</h3>
+<table>
+<tr><th>定数</th><th>値</th></tr>
+<tr><td><code>FP_BITS</code></td><td><strong>2048</strong>。<code>engine/src/carry.rs</code> の <code>F</code>（fingerprint ビルド）と一致必須</td></tr>
+<tr><td><code>FP_RADIUS</code></td><td><strong>4</strong> = <strong>ECFP8</strong>。「このデータの公表ベースラインが使う半径」</td></tr>
+<tr><td><code>MAX_RADICAL_RATE</code></td><td>0.01</td></tr>
+</table>
+<p>**半径4は半径2より部分構造が大きくビットが疎なので、同じ Tanimoto 0.4 が</p>
+<p>ECFP4 よりかなり厳しい。**適用範囲の中央値 0.2 はこれで説明が付く。</p>
+<h3>5.9 <code>fingerprint_library.py</code>（約110行）— ライブラリ側の指紋</h3>
+<p><code>PART_ROWS = 8192</code> が<strong>パート行数・numpy ブロック高・<code>row_group_size</code> の3つを兼ねる。</strong></p>
+<h2>6. 降格済み〔降格〕</h2>
+<table>
+<tr><th>ファイル</th><th>内容</th></tr>
+<tr><td><code>candidates.py</code></td><td>候補生成。SMARTS と InChIKey 重複排除。<strong><code>#lock_0</code> あり</strong></td></tr>
+<tr><td><code>sequential.py</code></td><td>逐次スクリーニング</td></tr>
+<tr><td><code>screen.py</code></td><td>スクリーニング</td></tr>
+</table>
+<p><strong>3本とも <code>--emit-molecules</code> なしでは止まる。</strong></p>
+<p><code>tests/test_request.py</code> が、<strong>製品経路のどのモジュールもこれらを import しない</strong></p>
+<p>ことを固定している。</p>
+<h2>7. テスト（124本）</h2>
+<table>
+<tr><th>ファイル</th><th>本数</th><th>守るもの</th></tr>
+<tr><td><code>test_memory_invariant.py</code></td><td>3</td><td><strong>不変条件。</strong>2軸（データ量・バルクサイズ）。<code>OCCAM_FACTORS</code> で振る</td></tr>
+<tr><td><code>test_smiles.py</code></td><td>11</td><td>SMILES の方言・修復・no-op 確認</td></tr>
+<tr><td><code>test_descriptors.py</code></td><td>4</td><td>記述子、RSS のスケール平坦性、実データのパース失敗率</td></tr>
+<tr><td><code>test_folds.py</code></td><td>5</td><td>グループが fold をまたがない、Butina の上限拒否</td></tr>
+<tr><td><code>test_ingest.py</code></td><td>2</td><td>引用符つきレコード、破棄理由の計数</td></tr>
+<tr><td><code>test_invariants_locked.py</code></td><td>6</td><td>KeepOut の存在・ロック9箇所・改変検出・同梱コピーのハッシュ照合・ライセンス</td></tr>
+<tr><td><code>test_render.py</code></td><td>26</td><td>表示層。<strong>文言中の数字と registry の照合</strong></td></tr>
+<tr><td><code>test_request.py</code></td><td>28</td><td>パーサの拒否、引退、障壁、降格モジュールへの依存</td></tr>
+<tr><td><code>test_no_duplicated_counts.py</code></td><td>6</td><td><strong>同じ件数が2つのリテラルに書かれていたら落ちる</strong></td></tr>
+<tr><td><code>test_contraindications.py</code></td><td>29</td><td>禁忌10項目の assertion 化、1セット逐次、スコープ一致</td></tr>
+<tr><td>Rust</td><td>11</td><td>carry 固定長、バルク1つ、標準化定数、AUC、シグモイド有界、top-k</td></tr>
+</table>
+<h2>8. 併読</h2>
+<table>
+<tr><th><code>docs/final_report.md</code></th><th><strong>最終報告書</strong>（本書の対）。何を establish したか</th></tr>
+<tr><td><code>docs/HANDOFF.md</code></td><td>引継ぎ。§4 確定値、§7 禁忌86項目</td></tr>
+<tr><td><code>docs/prompt_format.md</code></td><td>プロンプトの形式</td></tr>
+<tr><td><code>docs/overbuilt.md</code></td><td>過剰実装の棚卸し</td></tr>
+</table>
+</body></html>

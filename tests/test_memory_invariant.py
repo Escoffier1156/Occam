@@ -109,8 +109,32 @@ def setUpModule():
 
 class MemoryInvariant(unittest.TestCase):
     def test_engine_unit_tests(self):
-        # Carry size is a compile-time constant; two live bulks panic.
-        sh("cargo", "test", "--release", "--quiet", cwd=ENGINE_DIR)
+        """Carry size is a compile-time constant; two live bulks panic.
+
+        ONE TEST THREAD, AND WHY THE GUARD IS NOT THE THING TO CHANGE
+
+        LIVE_BULKS is a process-wide AtomicUsize, which is the right grain:
+        the production path is one loop, and a counter that every thread can
+        see is what makes "two bulks alive at once" detectable at all.
+
+        cargo runs tests in parallel by default, and bulk.rs's own
+        `one_bulk_at_a_time` test deliberately holds a Bulk while trying to
+        build a second. Any other test constructing a Bulk on another thread
+        during that window trips the assert -- a false positive from the test
+        runner, not a violation. It fired once here, as
+        `process::tests::learning_and_scoring` panicking inside
+        `bulk.rs:49`, and did not reproduce in ten further runs.
+
+        Making the counter thread-local would silence it by weakening the
+        guard in production, where the threads do not exist. Serialising the
+        tests costs nothing and leaves the guard at full strength.
+
+        The failure was only diagnosable because the run's output was in a
+        file (contraindication 48). Standard output alone would have lost the
+        traceback, and ten clean reruns would have closed it as a fluke.
+        """
+        sh("cargo", "test", "--release", "--quiet", "--",
+           "--test-threads=1", cwd=ENGINE_DIR)
 
     def test_peak_rss_flat_across_scales(self):
         runs = {n: run_engine(SCALED[n], BULK_SIZE) for n in FACTORS}

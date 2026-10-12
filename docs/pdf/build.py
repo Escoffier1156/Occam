@@ -20,8 +20,42 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent.parent
-SOURCE = ROOT / "docs" / "patent_inventory.md"
-OUT = ROOT / "docs" / "pdf" / "patent_candidates.html"
+# Each entry: source markdown, output html, title, subtitle, and an optional
+# (start marker, regex of sections to drop) pair.
+DOCUMENTS = {
+    "patent": {
+        "source": ROOT / "docs" / "patent_inventory.md",
+        "out": ROOT / "docs" / "pdf" / "patent_candidates.html",
+        "title": "Occam — 技術の棚卸し（特許相談用）",
+        "subtitle": "グラム陰性菌スクリーニングの成立判定システム",
+        "start": "**判断できないことを先に書く。**",
+        "drop": r"## 0\. 全探索の範囲.*?(?=## 1\.)",
+        "warn": "<strong>これは特許性の判断ではない。</strong>"
+                "新規性・進歩性・先行技術調査は含まない。"
+                "弁理士に渡すための、技術の所在と、公知との境界の整理。",
+    },
+    "report": {
+        "source": ROOT / "docs" / "final_report.md",
+        "out": ROOT / "docs" / "pdf" / "final_report.html",
+        "title": "Occam — 最終報告書",
+        "subtitle": "グラム陰性菌スクリーニングの成立判定システム",
+        "start": "## 0. 要約",
+        "drop": None,
+        "warn": "<strong>すべての数字は現行コードでの実測。</strong>"
+                "撤回したものは撤回として残す。外部検証はゼロ、実験はゼロ。",
+    },
+    "algorithms": {
+        "source": ROOT / "docs" / "algorithms.md",
+        "out": ROOT / "docs" / "pdf" / "algorithms.html",
+        "title": "Occam — アルゴリズム解剖書",
+        "subtitle": "全モジュールの機構・定数・不変条件",
+        "start": "## 0. 読み方",
+        "drop": None,
+        "warn": "<strong>すべて実装から転記。</strong>"
+                "定数・閾値・正規表現は出典の行から取っている。"
+                "実装とずれたら実装が正しい。",
+    },
+}
 
 CSS = """
 @page { size: A4; margin: 18mm 16mm 20mm 16mm;
@@ -115,28 +149,36 @@ def convert(body):
     return out
 
 
-def main():
-    src = SOURCE.read_text()
-    # The disclaimer onwards; the survey-scope section is about the
-    # repository, not the candidates.
-    body = src[src.index("**判断できないことを先に書く。**"):]
-    body = re.sub(r"## 0\. 全探索の範囲.*?(?=## 1\.)", "", body, flags=re.S)
-
-    OUT.write_text(f"""<!doctype html>
+def build(spec):
+    src = spec["source"]
+    if not src.exists():
+        print(f"skip: {src.relative_to(ROOT)} does not exist")
+        return
+    body = src.read_text()
+    body = body[body.index(spec["start"]):]
+    if spec["drop"]:
+        body = re.sub(spec["drop"], "", body, flags=re.S)
+    spec["out"].write_text(f"""<!doctype html>
 <html lang="ja"><head><meta charset="utf-8">
-<title>Occam 技術の棚卸し（特許相談用）</title>
+<title>{spec["title"]}</title>
 <style>{CSS}</style></head><body>
 <div class="head">
-  <h1>Occam — 技術の棚卸し（特許相談用）</h1>
-  <p class="sub">2026-10-11 ／ グラム陰性菌スクリーニングの成立判定システム</p>
+  <h1>{spec["title"]}</h1>
+  <p class="sub">2026-10-12 ／ {spec["subtitle"]}</p>
 </div>
-<div class="warn">
-<strong>これは特許性の判断ではない。</strong>新規性・進歩性・先行技術調査は含まない。
-弁理士に渡すための、技術の所在と、公知との境界の整理。
-</div>
+<div class="warn">{spec["warn"]}</div>
 {chr(10).join(convert(body))}
 </body></html>""")
-    print(f"-> {OUT.relative_to(ROOT)}")
+    print(f"-> {spec['out'].relative_to(ROOT)}")
+
+
+def main():
+    wanted = sys.argv[1:] or list(DOCUMENTS)
+    for name in wanted:
+        if name not in DOCUMENTS:
+            print(f"unknown document: {name}; have {list(DOCUMENTS)}")
+            return 1
+        build(DOCUMENTS[name])
     return 0
 
 
