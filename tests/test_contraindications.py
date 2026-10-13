@@ -858,3 +858,100 @@ class ARankingRequestIsAnsweredAndNotOnlyDropped(unittest.TestCase):
         self.assertEqual(render_mod.ranking_answer(None, "not_answerable"), [])
         self.assertEqual(
             render_mod.ranking_answer({"phrases": []}, "not_answerable"), [])
+
+
+class EvidenceIsDeclaredAndNotDiscovered(unittest.TestCase):
+    """inventory.take() globbed data/work/*.parquet, which answers "what files
+    are in the output directory" and was being read as "what evidence may this
+    tool answer from". It returned 28 entries: six datasets, nine copies the
+    memory test scales up to ten thousand times, and feature tables holding
+    the same rows again.
+
+    Nothing was corrupted -- measured, not assumed: no plausible target name
+    matched any of the 28, because a target is promoted only from the -ase
+    shape or a closed construction, and the words that did match the surplus
+    (group, threshold, split, label) are neither. Two faults were cancelling.
+    """
+
+    def test_the_inventory_is_small_and_every_entry_is_a_dataset(self):
+        import inventory as inventory_mod
+        taken = inventory_mod.take()
+        self.assertLessEqual(len(taken), 8, "the output directory is being "
+                                            "read as the evidence list again")
+        for entry in taken:
+            self.assertIn("dataset", entry, entry.get("path"))
+
+    def test_no_test_scaffolding_is_evidence(self):
+        """part-00000000_x10000 is B3DB repeated ten thousand times. A target
+        matching it would be reported from 78 million duplicate rows."""
+        import inventory as inventory_mod
+        import re
+
+        for entry in inventory_mod.take():
+            self.assertNotRegex(
+                entry["path"], r"_x\d+(/|$)",
+                f"{entry['path']} is a scaled copy, not evidence")
+
+    def test_a_dataset_with_no_manifest_is_not_evidence(self):
+        import inventory as inventory_mod
+        names = {d["dataset"] for d in inventory_mod.declared()}
+        self.assertNotIn("herg", names,
+                         "a dataset whose files were deleted came back")
+
+    def test_a_library_declares_itself_out(self):
+        """ZINC22 carries no label, so a target question put to it could only
+        return nothing. Listing it would say a question had been asked."""
+        import inventory as inventory_mod
+        self.assertNotIn("zinc22",
+                         {d["dataset"] for d in inventory_mod.declared()})
+
+    def test_what_nothing_reads_is_not_in_the_search_path(self):
+        """ChEMBL src_id=40 is 69 MB under CC BY-SA 3.0 that no module
+        consumes. Declaring it evidence would put its share-alike question in
+        the path of a tool that never reads it."""
+        import inventory as inventory_mod
+        self.assertNotIn("chembl_src40",
+                         {d["dataset"] for d in inventory_mod.declared()})
+
+    def test_the_words_that_used_to_match_the_surplus_no_longer_do(self):
+        """split and label were feature-table columns, repeated once per
+        copy. group and threshold are B3DB's own columns and stay: they are
+        evidence, and a hit on them is a true hit."""
+        import inventory as inventory_mod
+        taken = inventory_mod.take()
+        for word in ("split", "label"):
+            self.assertEqual(inventory_mod.find_label(taken, [word]), [],
+                             f"{word} still matches a derived table")
+
+    def test_no_plausible_target_matches_anything(self):
+        """The measurement that showed the surplus had not corrupted an
+        answer. It must keep holding."""
+        import inventory as inventory_mod
+        taken = inventory_mod.take()
+        for word in ("transglycosylase", "gyrase", "kinase", "lipase",
+                     "protease", "purchase"):
+            self.assertEqual(inventory_mod.find_label(taken, [word]), [],
+                             f"{word} resolved against this evidence")
+
+    def test_a_declared_caveat_travels_with_the_evidence(self):
+        """B3DB here is the version before upstream v1.0.0, 7,807 rows
+        against the 7,982 the repository holds today. It was listed beside
+        the others in identical words."""
+        import inventory as inventory_mod
+        b3db = [d for d in inventory_mod.take() if d["dataset"] == "b3db"]
+        self.assertTrue(b3db, "B3DB is not in the evidence")
+        self.assertIn("v1.0.0", b3db[0].get("caveat", ""))
+
+    def test_every_declaration_says_why(self):
+        """In or out, the manifest states the reason. A dataset dropped
+        without one is indistinguishable from a dataset forgotten."""
+        import inventory as inventory_mod
+        import json
+
+        for path in sorted((ROOT / "data" / "raw").glob("*/manifest.json")):
+            body = json.loads(path.read_text())
+            evidence = body.get("evidence")
+            if evidence is None:
+                continue
+            self.assertTrue(evidence.get("why"),
+                            f"{path.parent.name} declares without a reason")

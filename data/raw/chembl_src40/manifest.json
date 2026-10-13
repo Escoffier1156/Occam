@@ -36,5 +36,10 @@
       "file": "CHEMBL4296802.jsonl"
     }
   ],
-  "total_rows": 42693
+  "total_rows": 42693,
+  "evidence": {
+    "in_inventory": false,
+    "artefacts": [],
+    "why": "nothing consumes it. py/fetch_chembl.py downloaded it and no other module names it; it produces no artefact under data/work/. Declaring it evidence would put 69 MB of CC BY-SA 3.0 data in the search path of a tool that never reads it, and the share-alike question with it."
+  }
 }

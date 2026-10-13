@@ -81,5 +81,10 @@
     "which": "n, and the 2d/ and 2d-all/ paths, which return 401",
     "why": "the site publishes credentials for the protected generations as a riddle. They were NOT used. The site states the protection exists to keep never-been-made molecules off the open internet so that composition-of-matter patentability is preserved, so drawing candidates from them could affect the patentability of anything published from them. That is the project owner's decision, not a technical one. The open generations supply the needed mass range and scale, so nothing here depends on it",
     "verified_from": "data/raw/_searched.json, field \"access_note\""
+  },
+  "evidence": {
+    "in_inventory": false,
+    "artefacts": [],
+    "why": "a library to screen, not evidence to answer from. ZINC22 is unmeasured: it carries no label, so a target question put to it could only ever return nothing. Listing it as evidence would say a question had been asked of it."
   }
 }

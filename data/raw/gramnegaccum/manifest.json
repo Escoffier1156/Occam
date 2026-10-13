@@ -50,5 +50,10 @@
     "columns_present": { "globularity": "glob", "rotatable_bonds": "RB", "clogD7.4": "clogD7.4" },
     "note": "The published rules report no AUC, so running them on CHAMP under the same split produces a number that does not exist yet."
   },
-  "attribution_required": "Richter et al. Nature 2017, DOI 10.1038/nature22308; data via Zenodo 10.5281/zenodo.19798859, CC BY 4.0"
+  "attribution_required": "Richter et al. Nature 2017, DOI 10.1038/nature22308; data via Zenodo 10.5281/zenodo.19798859, CC BY 4.0",
+  "evidence": {
+    "in_inventory": true,
+    "artefacts": ["data/work/gna.parquet"],
+    "why": "the eNTRy rules' own compounds. External validation only, never pooled for training."
+  }
 }

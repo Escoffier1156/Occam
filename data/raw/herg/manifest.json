@@ -1,0 +1,42 @@
+{
+  "dataset": "hERG potassium channel inhibition (source not identified)",
+  "status": "not_used",
+  "reason": "Out of scope, and of unknown origin. hERG inhibition is a cardiotoxicity axis -- blocking the potassium channel raises arrhythmia risk -- and has nothing to do with crossing the Gram-negative outer membrane. B3DB earns its place by being a DIFFERENT BARRIER, which is a comparison worth making and a screen worth refusing; hERG is not a barrier at all. Nothing in the pipeline read it for an answer, and no source could be established for it, so it was removed rather than kept as evidence nobody could trace.",
+  "files_removed_utc": "2026-10-14",
+  "files": [
+    {
+      "file": "hERG_Dataset.csv",
+      "path_was": "data/raw/hERG_Dataset.csv",
+      "rows": 8884,
+      "sha256": "45ca12d0449d563840ce6c17b0caacd1a553067940b35a2b0ab7c85b04b76356",
+      "present": false
+    },
+    {
+      "file": "hERG_Dataset.parquet",
+      "path_was": "data/work/hERG_Dataset.parquet",
+      "derived_from": "hERG_Dataset.csv, by py/ingest.py",
+      "present": false
+    }
+  ],
+  "what_it_held": {
+    "rows": 8884,
+    "columns": ["SourceID", "SMILES", "PIC50", "USED_AS"],
+    "first_three_rows": [
+      "CHEMBL428777,C[C@@H](Oc1cccc2ncnc(Nc3ccc(OCc4ccccn4)c(Cl)c3)c12)C(=O)N(C)C,4.85,Dev-set",
+      "CHEMBL258313,C[C@@H](Oc1cccc2ncnc(Nc3ccc(OCc4ccccn4)c(Cl)c3)c12)C(=O)N(C)CCO,4.92,Dev-set",
+      "CHEMBL403774,C[C@@H](Oc1cccc2ncnc(Nc3ccc(OCc4ccccn4)c(Cl)c3)c12)C(=O)N5CCOCC5,5,Dev-set"
+    ],
+    "SourceID": "8,884 distinct, every one a CHEMBL identifier",
+    "SMILES": "8,883 distinct, so one structure appears twice",
+    "PIC50": "continuous, 0.00 to 9.85, 538 distinct values -- NOT binarised",
+    "USED_AS": {"Dev-set": 8380, "Test-set": 504}
+  },
+  "what_it_is_not": "NOT the TDC/Karim hERG set, which holds 13,445 rows under the columns Drug_ID / Drug / Y and is binarised at 10 micromolar. The columns here, the row count and the continuous pIC50 all differ.",
+  "identification_note": "The shipped Dev/Test split is the tell: a raw database extract does not carry the authors' own partition, so this is a paper's supplementary data and the split is the one its authors used. That, with 8,884 CHEMBL-identified rows and continuous pIC50, should be enough to re-identify it if it is ever wanted.",
+  "why_this_manifest_exists": "The same reason data/raw/sci_rep_2025/manifest.json exists: the file is gone and the investigation should not be repeated. It is also the record of a second thing, which is why it is worth reading before re-adding any dataset here.",
+  "how_it_was_reaching_the_product": {
+    "finding": "inventory.take() globbed data/work/*.parquet, so everything ingested became evidence that a named target was searched against -- 28 entries, of which 9 were the memory test's scaled copies and one was this.",
+    "did_it_corrupt_an_answer": "No. Measured 2026-10-14 against the inventory as it stood: transglycosylase, gyrase, kinase, lipase, protease and purchase matched nothing in any of the 28. A target is only promoted from the -ase shape or from a closed construction, and the words that DID match the extra entries -- group, threshold, reference, comments, split, label -- cannot be promoted by either route. Two faults were cancelling: loosening target detection would have exposed the other.",
+    "what_changed": "the inventory is declared rather than globbed. A dataset is evidence because a manifest says so, not because a file landed in data/work/."
+  }
+}

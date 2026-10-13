@@ -1,0 +1,90 @@
+{
+  "dataset": "B3DB: Blood-Brain Barrier Database",
+  "role": "a different barrier from the one this project's conditions are about. Used as a nearest-neighbour comparison set, so a library can be told whether it resembles brain-penetrant chemistry rather than what was asked for. Never used to screen with the eNTRy conditions: a request pointing those at this data stops.",
+  "repository": {
+    "url": "https://github.com/theochem/B3DB",
+    "files_under": "B3DB/",
+    "also_on": "figshare 10.6084/m9.figshare.15634230.v3"
+  },
+  "paper": {
+    "title": "A curated diverse molecular database of blood-brain barrier permeability with chemical descriptors",
+    "authors": "Meng, Fanwang; Xi, Yang; Huang, Jinfeng; Ayers, Paul W.",
+    "journal": "Scientific Data",
+    "volume": 8,
+    "number": 289,
+    "year": 2021,
+    "doi": "10.1038/s41597-021-01069-5"
+  },
+  "license": {
+    "name": "CC0 1.0 Universal",
+    "spdx": "CC0-1.0",
+    "open": true,
+    "verified_from": "the repository's own licence declaration on github.com/theochem/B3DB, read 2026-10-14",
+    "obligations": [],
+    "note": "CC0 imposes no attribution obligation. The citation above is kept because citing a dataset is the convention of the field, not because the licence requires it. This is the least restricted of the datasets here: no share-alike, as ChEMBL src_id=40 has, and no non-commercial clause, as the Scientific Reports 2025 tables had."
+  },
+  "files": [
+    {
+      "path": "data/raw/B3DB_classification.tsv",
+      "rows": 7807,
+      "sha256": "47a160aea1551423ead2aab70b301fb1646aea03cf151fd614eb37c78fa55b82",
+      "columns": [
+        "NO.",
+        "compound_name",
+        "IUPAC_name",
+        "SMILES",
+        "CID",
+        "logBB",
+        "BBB+/BBB-",
+        "Inchi",
+        "threshold",
+        "reference",
+        "group",
+        "comments"
+      ],
+      "label_column": "BBB+/BBB-",
+      "label_counts": {
+        "BBB+": 4956,
+        "BBB-": 2851
+      }
+    },
+    {
+      "path": "data/raw/B3DB_regression.tsv",
+      "rows": 1063,
+      "sha256": "b0f4c844137f6daedeb211f7567338d7b1b7974f84213077509a4666d180a8dd",
+      "columns": [
+        "NO.",
+        "compound_name",
+        "IUPAC_name",
+        "SMILES",
+        "CID",
+        "logBB",
+        "Inchi",
+        "reference",
+        "group",
+        "comments"
+      ],
+      "label_column": null
+    }
+  ],
+  "which_version_this_is": {
+    "finding": "the copy here is from BEFORE upstream v1.0.0",
+    "how": "the repository's README states 7807 categorical compounds prior to v1.0.0 and 7982 after. The classification file here holds 7807 rows, which places it on the earlier side of that boundary.",
+    "consequence": "re-fetching from the repository today would change the row count by 175 and move every number measured from this set. The files are not re-fetched for that reason: the figures in this repository's records were measured on the 7807-row version and would silently become figures about a different set.",
+    "read_utc": "2026-10-14"
+  },
+  "counts_reconciled": {
+    "classification": "7,807 rows = 4,956 BBB+ plus 2,851 BBB-, which is the split the paper reports. py/descriptors.py drops 2 rows, both BBB-, leaving 7,805 = 4,956 + 2,849. The output says 7,805 because that is the set the comparison reads.",
+    "regression": "UNRESOLVED. The README states 1,058 compounds with numerical logBB; this file holds 1,063 rows. The 5-row difference is not explained. The regression file is not read by anything in the product path, so the discrepancy is recorded rather than chased.",
+    "measured_utc": "2026-10-14"
+  },
+  "why_this_manifest_exists_now": "The two B3DB files sat in data/raw/ with no manifest while six other datasets had one, so their source and licence were recorded nowhere. It surfaced during an inventory of what could be handed to a third party: a file whose terms are unknown cannot be shipped, and a file whose terms are CC0 can. Writing it also fixed the version question, which nobody had asked.",
+  "evidence": {
+    "in_inventory": true,
+    "artefacts": [
+      "data/work/B3DB_classification.parquet"
+    ],
+    "why": "the categorical BBB+/BBB- set, which is what the nearest-set comparison reads. The regression file is not evidence for any question this tool answers and the descriptor and feature derivatives are the same rows again.",
+    "caveat": "upstream version before v1.0.0: 7,807 rows against the 7,982 the repository holds today"
+  }
+}

@@ -604,6 +604,9 @@ def nearest_training_set(survivors, candidates=None, size=300):
         "B3DB": ("blood-brain barrier",
                  WORK / "B3DB_classification.parquet"),
     }
+    import inventory as inventory_mod
+
+    declarations = inventory_mod.declared()
     chosen, total = sample_survivors(survivors, size)
     gen = generator()
     probes = []
@@ -629,9 +632,17 @@ def nearest_training_set(survivors, candidates=None, size=300):
             continue
         nearest = [max(DataStructs.BulkTanimotoSimilarity(p, reference))
                    for p in probes]
+        # A caveat the dataset declares about itself, carried to the row that
+        # names it. B3DB here is the upstream version before v1.0.0 and was
+        # listed beside the others in identical words, which is how a count
+        # comes to mean a whole set for one row and a part for another.
+        caveat = next((d.get("caveat") for d in declarations
+                       if d.get("dataset", "").lower() == name.lower()
+                       and d.get("caveat")), None)
         out.append({"training_set": name,
                     "measures": measures,
                     "structures": len(reference),
+                    **({"caveat": caveat} if caveat else {}),
                     "median_nearest": round(st.median(nearest), 3),
                     "max_nearest": round(max(nearest), 3),
                     "inside_threshold": round(
@@ -976,6 +987,13 @@ def show(body, cost=None):
                           f"median nearest {row['median_nearest']:.3f}, "
                           f"{row['inside_threshold']:.1%} at or above "
                           f"Tanimoto {EXTRAPOLATION_BELOW}")
+                    # What this set says about itself. Rows are read as a
+                    # column of comparable numbers, so a set that is not the
+                    # current version has to say so where the number is.
+                    if row.get("caveat"):
+                        for line in render_mod.wrap(row["caveat"], indent=6,
+                                                    hanging=8):
+                            print(line)
             elif alternatives:
                 for line in render_mod.wrap(str(alternatives), indent=4,
                                             hanging=6):

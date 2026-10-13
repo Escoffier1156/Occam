@@ -77,5 +77,10 @@
     "The paper develops the assay and reports no machine-learning baseline, so a baseline has to be trained here under matched conditions.",
     "Assay differs from GramNegAccum (LC-MS/MS whole-cell); do not pool them for training."
   ],
-  "attribution_required": "CHAMP dataset, Zenodo record 17434251, DOI 10.5281/zenodo.17434251, CC BY 4.0"
+  "attribution_required": "CHAMP dataset, Zenodo record 17434251, DOI 10.5281/zenodo.17434251, CC BY 4.0",
+  "evidence": {
+    "in_inventory": true,
+    "artefacts": ["data/work/champ.parquet"],
+    "why": "accumulation in E. coli, the measured set this project's conditions are about."
+  }
 }

@@ -153,20 +153,83 @@ def searched_sources():
             for s in record.get("sources", [])]
 
 
-def take(work=WORK):
+def declared(raw=RAW):
+    """Every dataset that says it is evidence, read from its manifest.
+
+    EVIDENCE IS DECLARED, NOT DISCOVERED
+    --------------------------------------------------------------------
+    This used to glob data/work/*.parquet and every directory beside them,
+    which answered a different question: not "what evidence is here" but
+    "what files happen to be in the output directory". Those are not the same
+    set and were never going to be. It returned 28 entries. Six were datasets.
+    Nine were the memory test's scaled copies -- the same B3DB rows repeated
+    up to ten thousand times, 78 million rows of duplicate -- and the rest
+    were feature tables and fingerprint blocks, which are the same rows again
+    in another shape.
+
+    Nothing was corrupted by it, measured rather than assumed: on 2026-10-14
+    no plausible target name (transglycosylase, gyrase, kinase, lipase,
+    protease, and the purchase that once stopped a run) matched anything in
+    any of the 28. The words that DID match the surplus -- group, threshold,
+    reference, comments, split, label -- are column names that cannot be
+    promoted to a target, because a target is read from the -ase shape or
+    from a closed construction and none of them is either. Two faults were
+    cancelling, which is not the same as neither existing: loosening target
+    detection would have exposed twenty-six duplicate hits.
+
+    data/work/ is the output directory. It was being read as the list of
+    evidence the tool may answer from, and those are two jobs for one
+    directory. A dataset is evidence here because its manifest says so.
+    What follows from that, without any further rule: the test scaffolding
+    has no manifest and leaves; a library with no labels declares itself out,
+    because a target question put to it could only ever return nothing; and a
+    dataset whose manifest records that its files were deleted does not come
+    back.
+    """
+    out = []
+    for directory in sorted(d for d in raw.iterdir() if d.is_dir()):
+        path = directory / "manifest.json"
+        if not path.exists():
+            continue
+        try:
+            body = json.loads(path.read_text())
+        except json.JSONDecodeError:
+            continue
+        evidence = body.get("evidence") or {}
+        if not evidence.get("in_inventory"):
+            continue
+        out.append({"dataset": directory.name, "manifest": str(
+            path.relative_to(ROOT)), **evidence})
+    return out
+
+
+def take(work=WORK, raw=RAW):
+    """The evidence, described from the files the declarations point at.
+
+    Still read off disk -- a manifest says WHICH artefact is evidence, never
+    what is in it. The schemas and label distributions below come from the
+    parquet, as they always did.
+    """
     datasets = []
-    for path in sorted(work.glob("*.parquet")):
-        datasets.append(describe_parquet(path))
-    for directory in sorted(d for d in work.iterdir() if d.is_dir()):
-        described = describe_parts(directory)
-        if described:
+    for entry in declared(raw):
+        for relative in entry.get("artefacts") or []:
+            path = ROOT / relative
+            if not path.exists():
+                continue
+            described = (describe_parts(path) if path.is_dir()
+                         else describe_parquet(path))
+            if not described:
+                continue
+            described["path"] = relative
+            described["dataset"] = entry["dataset"]
+            # The caveat travels with the evidence. B3DB here is the version
+            # before upstream v1.0.0, and nothing downstream could have known
+            # that: it was listed beside the others in identical words, which
+            # is how "1,000,000 compounds" came to mean an ingest for one
+            # slice and a whole slice for the others.
+            if entry.get("caveat"):
+                described["caveat"] = entry["caveat"]
             datasets.append(described)
-        else:
-            single = directory / "features.parquet"
-            if single.exists():
-                described = describe_parquet(single)
-                described["path"] = str(directory.relative_to(ROOT)) + "/features.parquet"
-                datasets.append(described)
     return datasets
 
 

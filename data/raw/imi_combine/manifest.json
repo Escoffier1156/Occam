@@ -76,5 +76,10 @@
     "data/processed/bacterial_spark.tsv",
     "data/processed/combined_model_comparison_results.tsv"
   ],
-  "attribution_required": "IMI-COMBINE broad_spectrum_prediction, MIT licence, JCIM 2025"
+  "attribution_required": "IMI-COMBINE broad_spectrum_prediction, MIT licence, JCIM 2025",
+  "evidence": {
+    "in_inventory": true,
+    "artefacts": ["data/work/imi_clean.parquet"],
+    "why": "the activity data the model is fitted on, and the only set here carrying organism-class labels. A question about a named target is actually resolved against this."
+  }
 }
