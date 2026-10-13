@@ -729,3 +729,132 @@ class EveryBranchOfTheBarrierSentenceIsGrammatical(unittest.TestCase):
     def test_the_call_site_no_longer_interpolates(self):
         self.assertNotIn('f"this library is about {named}."',
                          source("occam.py"))
+
+
+class EveryQuestionTheMeasurementCanSettleIsMeasured(unittest.TestCase):
+    """A sample cannot clear the floor, so a tool that always sampled would
+    answer "not settled" for every set larger than the sample and the ranking
+    verdict would be decorative. The rule has three cases and the middle one
+    is the point: a set larger than the fallback sample but inside the time
+    budget is read in full, so the verdict gets stated rather than deferred.
+
+    The ceiling is a consequence of a declared time budget, not a count that
+    was argued for, so these tests pass it explicitly. What is being fixed
+    here is the rule.
+    """
+
+    def test_a_set_inside_the_ceiling_is_read_in_full(self):
+        import screenable as sc
+        self.assertEqual(sc.measure_count(1820, ceiling=5000, fallback=1200),
+                         1820, "a set inside the budget was sampled")
+
+    def test_a_set_at_the_ceiling_is_read_in_full(self):
+        import screenable as sc
+        self.assertEqual(sc.measure_count(5000, ceiling=5000, fallback=1200),
+                         5000)
+
+    def test_a_set_past_the_ceiling_falls_back_to_the_sample(self):
+        import screenable as sc
+        self.assertEqual(sc.measure_count(17775, ceiling=5000, fallback=1200),
+                         1200)
+
+    def test_full_overrides_the_ceiling(self):
+        """--full is what makes "not settled" a choice rather than a dead
+        end: the requester can spend the time and get the verdict."""
+        import screenable as sc
+        self.assertEqual(
+            sc.measure_count(17775, full=True, ceiling=5000, fallback=1200),
+            17775)
+
+    def test_a_set_smaller_than_the_sample_is_never_padded(self):
+        import screenable as sc
+        self.assertEqual(sc.measure_count(430, ceiling=5000, fallback=1200),
+                         430)
+        self.assertEqual(sc.measure_count(430, ceiling=100, fallback=1200),
+                         430, "the fallback exceeded the set and was not cut")
+
+    def test_the_rule_and_the_verdict_agree(self):
+        """A count chosen by measure_count() must produce a verdict that
+        rank_verdict() can state. Inside the ceiling the measurement is full,
+        so a clearing share is answerable; past it the measurement is sampled,
+        so a clearing share is not settled."""
+        import screenable as sc
+
+        total, clearing = 1820, 0.5967
+        read = sc.measure_count(total, ceiling=5000, fallback=1200)
+        self.assertEqual(
+            sc.rank_verdict(clearing, 0.005, sampled=read < total),
+            "answerable")
+
+        read = sc.measure_count(total, ceiling=1000, fallback=1200)
+        self.assertEqual(
+            sc.rank_verdict(clearing, 0.005, sampled=read < total),
+            "not_settled_at_this_sample")
+
+
+class ARankingRequestIsAnsweredAndNotOnlyDropped(unittest.TestCase):
+    """"Rank them and give me the top 50" went into the unread list, which is
+    right -- no knob is being set and this tool emits no molecules. Thirty
+    lines below, the same run measured the set and reported that the model
+    cannot order it, which is the direct answer to what was asked, and the two
+    were never joined.
+    """
+
+    def test_a_top_n_request_is_recorded(self):
+        import occam as occam_mod
+        spec, _ = occam_mod.parse(
+            "256 distinct scaffolds from the dicationic ZINC library, "
+            "primary amine, rotatable bonds at most 5, molecular weight "
+            "under 450. Rank them and give me the top 50.")
+        self.assertEqual(spec["asked_to_rank"]["top_n"], 50)
+
+    def test_a_request_with_no_ranking_records_nothing(self):
+        """The join only appears where there is a request to join it to."""
+        import occam as occam_mod
+        spec, _ = occam_mod.parse(
+            "256 distinct scaffolds from the dicationic ZINC library, "
+            "primary amine, rotatable bonds at most 5")
+        self.assertIsNone(spec.get("asked_to_rank"))
+
+    def test_the_ranking_request_does_not_become_a_requirement(self):
+        """It sets nothing. The vocabulary stays closed and the deliverable
+        is untouched -- a ranking is not something this tool does."""
+        import occam as occam_mod
+        spec, _ = occam_mod.parse(
+            "256 distinct scaffolds from the dicationic ZINC library, "
+            "primary amine. Rank them and give me the top 50.")
+        self.assertEqual(spec["deliverable"], {"distinct_scaffolds": 256})
+        self.assertNotIn("rank", [r.get("knob") for r in spec["requirements"]])
+
+    def test_an_unorderable_set_answers_the_request_it_was_asked_about(self):
+        import render as render_mod
+        said = " ".join(render_mod.ranking_answer({"phrases": ["top 50"],
+                                                   "top_n": 50},
+                                                  "not_answerable"))
+        self.assertIn("top 50", said)
+        self.assertIn("cannot be drawn", said)
+
+    def test_an_unsettled_verdict_does_not_read_as_a_refusal(self):
+        """"Not settled" is not "no". A reader must not come away thinking
+        the set was shown to be unorderable when it was not measured."""
+        import render as render_mod
+        said = " ".join(render_mod.ranking_answer(
+            {"phrases": ["top 50"], "top_n": 50},
+            "not_settled_at_this_sample"))
+        self.assertIn("not settled", said)
+        self.assertNotIn("cannot be drawn", said)
+
+    def test_an_orderable_set_still_promises_no_molecules(self):
+        """The verdict licenses running the screen. It does not make this tool
+        the thing that hands over a list."""
+        import render as render_mod
+        said = " ".join(render_mod.ranking_answer({"phrases": ["top 50"],
+                                                   "top_n": 50},
+                                                  "answerable"))
+        self.assertIn("no molecules are emitted", said.lower())
+
+    def test_nothing_asked_prints_nothing(self):
+        import render as render_mod
+        self.assertEqual(render_mod.ranking_answer(None, "not_answerable"), [])
+        self.assertEqual(
+            render_mod.ranking_answer({"phrases": []}, "not_answerable"), [])

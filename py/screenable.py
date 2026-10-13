@@ -161,8 +161,97 @@ CONTROLS = {
                     "direction, more extreme.",
     },
 }
+# The fallback count, used only when the whole set is too large to read inside
+# the budget below. Everything at or under the ceiling is measured in full.
 SAMPLE = 1200
 SAMPLE_SEED = 0
+
+# WHEN TO MEASURE EVERY SURVIVOR
+#
+# A sample cannot clear the floor (see rank_verdict), so a tool that always
+# sampled would answer "not settled" for every set larger than SAMPLE and the
+# ranking verdict would be decorative. The obvious counterweight is cost, so
+# the cost was measured. It is not there.
+#
+#   TIMED 2026-10-13, ONE MACHINE, rankability() WALL CLOCK
+#
+#     n=   200   221.89  220.56  196.36
+#     n=   600   254.78
+#     n=  1200   262.03
+#     n=  1820   242.92  236.77
+#     n= 13946   248.06
+#
+#   Reading 70x more molecules does not cost more. The work is the fit --
+#   22,051 training rows, 10 epochs, once per measurement -- and the survivors
+#   are scored afterwards in a pass that disappears into it.
+#
+# WHAT WENT WRONG IN MEASURING IT, TWICE
+#
+# The first four points went in ascending n and declined, 273 -> 243. Fitting
+# them gave -14.9 ms per molecule, significant at two standard errors: a
+# NEGATIVE cost per molecule, which cannot be. n and time-of-run were
+# confounded, the first run in a batch pays a cold start, and the fit was
+# measuring the batch and not the count. Re-run in descending order the same
+# 1,820 took 299.84 as the first point against 242.92 as the fourth.
+#
+# The second attempt compared warm points only and separated 200 from 1,820 by
+# 18.6 s against a 6.2 s within-count spread -- but both 200s came from the
+# faster batch, so count and batch were correlated again. Bracketing one 1,820
+# between two 200s inside ONE batch gave 9.6 ms per molecule, which predicted
+# 349 s for 13,946. It came in at 248.06.
+#
+# Three estimates of the per-molecule cost, all withdrawn: negative, then
+# noise dressed as a fit, then an extrapolation the direct measurement broke.
+# What survives is the only claim the data makes without a model: from 200 to
+# 13,946 survivors, no per-molecule cost is measurable.
+#
+# SO THE CEILING IS NOT A TIME BUDGET
+#
+# A budget was declared first -- 300 s of wall clock, with the ceiling derived
+# from it -- and that design is withdrawn with the slope it depended on. There
+# is nothing to divide a budget by. The ceiling is now the edge of the range
+# the measurement covers: beyond it the cost is unmeasured, not large.
+#
+# Above the ceiling the verdict is not_settled_at_this_sample, with --full to
+# measure anyway, so "not settled" stays a choice rather than a dead end.
+#
+# THIS APPLIES TO rankability() AND NOT TO applicability()
+#
+# Their costs are different in kind. Applicability takes every survivor's
+# greatest Tanimoto to 22,051 training structures, which is O(n x 22,051) and
+# does scale. Its sampling is also a different question: a sampled MEDIAN does
+# not drift with n the way a distinct-SHARE does, so the asymmetry that
+# rank_verdict() exists for has no counterpart there. Left as it is, and
+# unexamined rather than cleared.
+SECONDS_PER_MOLECULE = None  # not measurable from 200 to 13,946; see above
+RANKING_FIXED_SECONDS = 240.0  # mean of the warm points, all counts
+RANKING_TIMED_SECONDS = {200: [221.89, 220.56, 196.36], 600: [254.78],
+                         1200: [262.03], 1820: [242.92, 236.77],
+                         13946: [248.06]}
+# Both ends of the measured range come from the measurements, not from a
+# second copy of them. The repository's duplicated-count guard caught 13,946
+# written once in the table and once in the sentence about it, which is how
+# the sentence would have gone stale the next time a point was added.
+RANKING_MEASURED_FROM = min(RANKING_TIMED_SECONDS)
+RANKING_MEASURED_TO = max(RANKING_TIMED_SECONDS)
+RANKING_COST = {
+    "timed_seconds": RANKING_TIMED_SECONDS,
+    "machine": "one machine, 2026-10-13",
+    "finding": f"no per-molecule cost is measurable between "
+               f"{RANKING_MEASURED_FROM:,} and {RANKING_MEASURED_TO:,} "
+               f"survivors; the fit on the training rows is the whole cost",
+    "withdrawn": f"three estimates of a per-molecule cost. The first was "
+                 f"negative because n was confounded with run order; the "
+                 f"second correlated count with batch; the third, 9.6 ms, "
+                 f"predicted 349 s for {RANKING_MEASURED_TO:,} survivors "
+                 f"against "
+                 f"{RANKING_TIMED_SECONDS[RANKING_MEASURED_TO][0]:.0f} "
+                 f"measured. A time budget divided by a per-molecule cost was "
+                 f"the original design and is withdrawn with it",
+}
+# The edge of the measured range, rounded up to cover the whole -P slice
+# (17,775). An extension past what was measured, and said to be one.
+FULL_MEASUREMENT_CEILING = 20000
 
 
 def generator():
@@ -230,6 +319,40 @@ def _infer_from_counts(record, source):
             if sum(1 for v in values if v == value) == positives:
                 matches.append(f"{name}={value}")
     return matches[0] if len(matches) == 1 else None
+
+
+def measure_count(total, full=False, ceiling=None, fallback=SAMPLE):
+    """How many of the survivors the ranking measurement should read.
+
+    Three cases, and the middle one is the point: a set larger than the
+    fallback sample but inside the time budget is measured in full, so the
+    verdict can be stated rather than deferred.
+
+        total <= ceiling   every survivor, and the verdict is stated
+        total >  ceiling   the fallback sample, and the verdict says it is
+                           not settled, with what a full pass would cost
+        full=True          every survivor regardless, which is what --full is
+
+    The ceiling comes from a declared time budget and not from a count, so
+    changing machines changes the number and not the rule.
+    """
+    if ceiling is None:
+        ceiling = FULL_MEASUREMENT_CEILING
+    if full or ceiling is None or total <= ceiling:
+        return total
+    return min(fallback, total)
+
+
+def full_measurement_seconds(total):
+    """Roughly how long reading every survivor would take, for the sentence
+    that offers --full.
+
+    Flat in `total` across every count measured, so this returns the fixed
+    cost and ignores its argument -- which is the finding, not a shortcut.
+    Past the ceiling it is an extrapolation out of the measured range, and the
+    caller says so rather than printing a bare number.
+    """
+    return RANKING_FIXED_SECONDS
 
 
 def rank_verdict(distinct_share, top_share, sampled):
@@ -613,11 +736,18 @@ def answerable_questions(words=None):
 
 def report(survivors, features=WORK / "imi_fp" / "features.parquet",
            training_library=WORK / "imi_clean.parquet", size=SAMPLE,
-           epochs=10, learning_rate=0.5):
-    """All three, for one survivor set. Molecules are never returned."""
+           epochs=10, learning_rate=0.5, full=False):
+    """All three, for one survivor set. Molecules are never returned.
+
+    `size` is the applicability sample, whose cost scales. The ranking count
+    is chosen by measure_count() instead, because its cost does not: sampling
+    there bought no time and cost a verdict.
+    """
     training_smiles = pq.read_table(training_library,
                                     columns=["smiles"]).column(0).to_pylist()
-    rank = rankability(survivors, features, epochs, learning_rate, size)
+    rank = rankability(survivors, features, epochs, learning_rate,
+                       measure_count(len(survivors), full=full,
+                                     fallback=size))
     apply_ = applicability(survivors, training_smiles, size)
     model = training_label(features)
 
@@ -661,11 +791,16 @@ def report(survivors, features=WORK / "imi_fp" / "features.parquet",
                        f"but measured on {rank.get('sampled', 0):,} of "
                        f"{rank.get('of_survivors', 0):,} survivors, and this "
                        f"share falls as more are measured",
-            "measured_alternatives": f"measure all "
-                                     f"{rank.get('of_survivors', 0):,} "
-                                     f"survivors. That is the whole of it: no "
-                                     f"setting has to change and no new data "
-                                     f"is needed, only the rest of this set",
+            "measured_alternatives": (
+                f"run it again with --full, which measures all "
+                f"{rank.get('of_survivors', 0):,} survivors. No setting has "
+                f"to change and no new data is needed, only the rest of this "
+                f"set. Expect about "
+                f"{full_measurement_seconds(rank.get('of_survivors', 0)) / 60:.0f}"
+                f" minutes: the cost is the fit on the training rows and did "
+                f"not grow with the number of survivors anywhere it was "
+                f"measured, though this set is past the range that was "
+                f"measured, which is why the verdict waits for you to ask"),
             "what_this_means": "nothing is established about ordering this "
                                "set either way. A top N must not be drawn "
                                "from it on the strength of this figure",
@@ -867,7 +1002,15 @@ def main():
                         default=WORK / "imi_fp" / "features.parquet")
     parser.add_argument("--training-library", type=Path,
                         default=WORK / "imi_clean.parquet")
-    parser.add_argument("--sample", type=int, default=SAMPLE)
+    parser.add_argument("--sample", type=int, default=SAMPLE,
+                        help="the applicability sample, whose cost "
+                             "scales. The ranking count is chosen from "
+                             "the survivor total, because its cost does "
+                             "not")
+    parser.add_argument("--full", action="store_true",
+                        help="measure the ranking on every survivor even "
+                             "past the ceiling, instead of returning a "
+                             "verdict the sample cannot settle")
     parser.add_argument("--out", type=Path, default=WORK / "screenable.json")
     args = parser.parse_args()
 
@@ -878,7 +1021,8 @@ def main():
     else:
         survivors = pq.read_table(path, columns=["smiles"]).column(0).to_pylist()
 
-    result = report(survivors, args.features, args.training_library, args.sample)
+    result = report(survivors, args.features, args.training_library,
+                    args.sample, full=args.full)
     args.out.write_text(json.dumps(result, indent=2) + "\n")
     show(result)
     print(f"\n-> {args.out}")

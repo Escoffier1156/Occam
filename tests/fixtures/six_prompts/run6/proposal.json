@@ -1,0 +1,281 @@
+{
+  "request": {
+    "distinct_scaffolds_required": 500,
+    "specification_as_asked": {
+      "nitrogen": "primary_amine",
+      "rotatable": "rotatable_le_5",
+      "weight": "mw_under_450"
+    }
+  },
+  "verdict": "the specification as asked cannot fill the request; a looser one can",
+  "recommended": {
+    "specification": "primary_amine + rotatable_le_9 + mw_under_450",
+    "choices": {
+      "nitrogen": "primary_amine",
+      "rotatable": "rotatable_le_9",
+      "weight": "mw_under_450"
+    },
+    "survivors": 1820,
+    "scaffolds_estimated": 686,
+    "state_by_sketch": "feasible",
+    "steps_from_baseline": 2,
+    "loosened": {
+      "rotatable": "rotatable_le_9"
+    },
+    "provenance": {
+      "per_knob": {
+        "nitrogen": "published",
+        "rotatable": "relaxation",
+        "weight": "relaxation"
+      },
+      "weakest": "relaxation"
+    },
+    "state": "feasible",
+    "exact": {
+      "survivors": 1820,
+      "scaffolds_exact": 686,
+      "held_strings": 686
+    }
+  },
+  "frontier": [
+    {
+      "specification": "primary_amine + rotatable_le_9 + mw_under_450",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_under_450"
+      },
+      "survivors": 1820,
+      "scaffolds_estimated": 686,
+      "state_by_sketch": "feasible",
+      "steps_from_baseline": 2,
+      "loosened": {
+        "rotatable": "rotatable_le_9"
+      },
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "relaxation"
+        },
+        "weakest": "relaxation"
+      },
+      "state": "feasible",
+      "exact": {
+        "survivors": 1820,
+        "scaffolds_exact": 686,
+        "held_strings": 686
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_9 + mw_under_600",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_under_600"
+      },
+      "survivors": 1943,
+      "scaffolds_estimated": 714,
+      "state_by_sketch": "feasible",
+      "steps_from_baseline": 3,
+      "loosened": {
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_under_600"
+      },
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published (secondary: verbatim quote in Richter et al. 2017; the 2008 paper was not read directly)"
+        },
+        "weakest": "relaxation"
+      },
+      "state": "feasible",
+      "exact": {
+        "survivors": 1943,
+        "scaffolds_exact": 714,
+        "held_strings": 714
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_9 + mw_unbounded",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_unbounded"
+      },
+      "survivors": 1943,
+      "scaffolds_estimated": 714,
+      "state_by_sketch": "feasible",
+      "steps_from_baseline": 4,
+      "loosened": {
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_unbounded"
+      },
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published"
+        },
+        "weakest": "relaxation"
+      },
+      "state": "feasible",
+      "exact": {
+        "survivors": 1943,
+        "scaffolds_exact": 714,
+        "held_strings": 714
+      }
+    }
+  ],
+  "infeasible_count": 6,
+  "counted_exactly": [
+    "primary_amine + rotatable_le_9 + mw_under_600",
+    "primary_amine + rotatable_le_9 + mw_unbounded",
+    "primary_amine + rotatable_le_9 + mw_under_450",
+    "primary_amine + rotatable_le_7 + mw_under_600",
+    "primary_amine + rotatable_le_7 + mw_unbounded",
+    "primary_amine + rotatable_le_7 + mw_under_450"
+  ],
+  "counted_by_sketch_only": [
+    "primary_amine + rotatable_le_5 + mw_under_600",
+    "primary_amine + rotatable_le_5 + mw_unbounded",
+    "primary_amine + rotatable_le_5 + mw_under_450"
+  ],
+  "held_back": [],
+  "held_back_why": "the sketch could not place these against the requirement: their estimate is inside three standard errors of it. That is where the closest candidates are, so they are named rather than dropped. An exact second pass decides them, which needs the library",
+  "nearest_miss": {
+    "specification": "primary_amine + rotatable_le_7 + mw_under_600",
+    "choices": {
+      "nitrogen": "primary_amine",
+      "rotatable": "rotatable_le_7",
+      "weight": "mw_under_600"
+    },
+    "scaffolds_exact": 494,
+    "short_by": 6,
+    "survivors": 1292,
+    "steps_from_baseline": 2,
+    "loosened": {
+      "rotatable": "rotatable_le_7",
+      "weight": "mw_under_600"
+    },
+    "provenance": {
+      "per_knob": {
+        "nitrogen": "published",
+        "rotatable": "relaxation",
+        "weight": "published (secondary: verbatim quote in Richter et al. 2017; the 2008 paper was not read directly)"
+      },
+      "weakest": "relaxation"
+    }
+  },
+  "nearest_miss_why": "the closest specification that was counted exactly and did not reach the request. It is not an alternative -- it does not fill the order -- but how far short it fell is the figure that says whether to widen the library or lower the request, and a recommendation further away cannot say it",
+  "blocked_knobs": {
+    "library_charge_slice": {
+      "why": "ZINC22 splits each tranche by predicted protonation state at pH 7.4 -- N neutral, O +1, M -1, P +2 or more -- and that choice is made when the file is downloaded, not by any knob here. It is recorded as blocked because getting it wrong silently selects against the published rule. Measured in zinc-22x H29P240: primary amines are 0.21% of -N, 2.46% of -O and 13.06% of -P, a 62-fold range. Richter et al. 2017 report 12 of 41 positively charged compounds accumulating against 0 of 39 neutral and 0 of 20 negative, so -N is the slice their data says does not accumulate. The screen of 2026-10-09 used -N alone.",
+      "slices": {
+        "-N": "predicted neutral at pH 7.4",
+        "-O": "predicted +1 at pH 7.4",
+        "-M": "predicted -1 at pH 7.4",
+        "-P": "predicted +2 or more at pH 7.4"
+      },
+      "primary_amine_share": {
+        "-N": 0.0021,
+        "-O": 0.0246,
+        "-P": 0.1306
+      },
+      "primary_amine_share_measured_on": "zinc-22x H29P240, 20,000 per slice",
+      "where": {
+        "-N": "data/work/zinc",
+        "-O": "data/work/zinc_O",
+        "-M": "data/work/zinc_M",
+        "-P": "data/work/zinc_P"
+      },
+      "formal_charge_as_drawn": {
+        "what_this_is": "a measurement of THIS sample, not a property of ZINC22. Run py/charge_slices.py to reproduce it.",
+        "tranche": "zinc-22x H29P240",
+        "sample": 20000,
+        "seed": 0,
+        "measured": "2026-10-11",
+        "per_slice": {
+          "-N": {
+            "sampled": 20000,
+            "formal_charge_zero": 20000,
+            "other": {}
+          },
+          "-O": {
+            "sampled": 20000,
+            "formal_charge_zero": 19977,
+            "other": {
+              "+1": 23
+            }
+          },
+          "-P": {
+            "sampled": 17775,
+            "formal_charge_zero": 17775,
+            "other": {},
+            "note": "the whole slice, not a sample"
+          },
+          "-M": {
+            "sampled": 20000,
+            "formal_charge_zero": 19989,
+            "other": {
+              "+1": 11
+            },
+            "note": "drawn from a pool of the first 80,000 molecules of a PARTIAL download of this slice. The pool is a prefix of a prefix, so this is a measurement of that pool and not of the slice"
+          }
+        },
+        "what_it_does_not_say": "a count of 0 in a sample of 20,000 is an observation of none, not an absence. It bounds the share at roughly 0.015% at 95%, and no lower. In particular, no molecule drawn with a NEGATIVE formal charge appeared in the -M sample, which is a statement about that sample of that partial download."
+      },
+      "what_would_unblock": "download the -O and -P slices of the same tranche and screen them too, or make the slice an explicit field of the request so it cannot be chosen by accident"
+    },
+    "target_identity": {
+      "why": "no dataset here records what a compound acted on. Every label found is binary active/inactive, so no setting of any knob can make a target-specific question answerable.",
+      "what_would_unblock": "an assay with the target recorded per compound"
+    },
+    "globularity": {
+      "why": "the second eNTRy condition is globularity <= 0.25, which needs a 3D conformer. Nothing in this pipeline generates one, so the published rule is applied with two of its three conditions.",
+      "what_would_unblock": "a conformer generator, and a decision about which conformer counts",
+      "definition_if_implemented": "Richter et al. 2017 define globularity as the inverse condition number of the covariance matrix of the atomic coordinates: 1 is a perfect sphere, 0 a flat or linear object. Benzene is 0, adamantane 1. Observed values in that paper: ampicillin 0.12, penicillin G 0.17, deoxynybomycin 0.02.",
+      "measured_inert": {
+        "library": "zinc-22x H29P240",
+        "share_passing": 1.0,
+        "sampled": 300,
+        "median": 0.075,
+        "max": 0.247,
+        "threshold": 0.25,
+        "what": "every molecule sampled passes, so applying this condition changes nothing on this library. Reporting it as applied would be a true statement about the code and a false one about the screen."
+      },
+      "note": "GramNegAccum's raw table4.csv carries a computed 'glob' column, so the training side could use it even while the ZINC side cannot. That makes it usable for fitting and unusable for screening, which is a worse trap than not having it."
+    }
+  },
+  "how_this_was_chosen": [
+    "a variant must reach the required distinct scaffold count; the deliverable is one representative per scaffold, so the constraint is on scaffolds and not on survivors",
+    "among those, the fewest relaxation steps from the specification as asked",
+    "then the fewest PUBLISHED settings given up. Leaving a bound this study chose costs nothing, because no claim was being made there; leaving one a paper states is the expensive move, and the two were not told apart before",
+    "then the specification closest to what was asked. The tie-break used to be the largest survivor count, which prefers the largest overshoot: 686 distinct scaffolds were offered against a request for 500, and the two steps between them were never weighed. The specification said here to reach about 520 was counted exactly afterwards at 494, six short of the request, so it was not an alternative that had been missed -- that figure is withdrawn. It is reported as the nearest miss instead",
+    "the step granularity is a human choice, so the frontier is returned and the ranking is a suggestion"
+  ],
+  "sketch_role": "coarse filter only; variants near the requirement were counted exactly in a second pass",
+  "as_asked": {
+    "specification": "primary_amine + rotatable_le_5 + mw_under_450",
+    "choices": {
+      "nitrogen": "primary_amine",
+      "rotatable": "rotatable_le_5",
+      "weight": "mw_under_450"
+    },
+    "survivors": 430,
+    "scaffolds_estimated": 187,
+    "state_by_sketch": "infeasible",
+    "steps_from_baseline": 0,
+    "loosened": {},
+    "provenance": {
+      "per_knob": {
+        "nitrogen": "published",
+        "rotatable": "published",
+        "weight": "relaxation"
+      },
+      "weakest": "relaxation"
+    },
+    "state": "infeasible"
+  }
+}

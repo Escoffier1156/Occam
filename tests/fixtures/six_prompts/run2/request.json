@@ -1,0 +1,17 @@
+{
+  "goal": "Gram-negative accumulation screen, E. coli. All three eNTRy conditions, not two: an unhindered primary amine, globularity at most 0.25, rotatable bonds at most 5. No molecular weight bound unless you can cite one. Give me the scaffold count and state the scaffold definition you used.",
+  "library": null,
+  "deliverable": {},
+  "requirements": [
+    {
+      "knob": "nitrogen",
+      "setting": "primary_amine",
+      "strict": false
+    },
+    {
+      "knob": "rotatable",
+      "setting": "rotatable_le_5",
+      "strict": false
+    }
+  ]
+}

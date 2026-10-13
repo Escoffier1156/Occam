@@ -165,7 +165,8 @@ Python **124本** + Rust **11本**。KeepOut ロック **9箇所**。
 nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_ingest.py \
     tests/test_descriptors.py tests/test_folds.py tests/test_smiles.py \
     tests/test_invariants_locked.py tests/test_render.py tests/test_request.py \
-    tests/test_no_duplicated_counts.py tests/test_contraindications.py' 2>&1 | tee data/work/tests.log
+    tests/test_no_duplicated_counts.py tests/test_contraindications.py \
+    tests/test_six_prompts.py' 2>&1 | tee data/work/tests.log
 nix-shell --run 'cd engine && cargo test --release -- --test-threads=1'
 ```
 
@@ -343,7 +344,14 @@ occam/
     ├── test_ingest.py             RFC 4180 の往復 property test
     ├── test_descriptors.py        記述子計算、1%ガード
     ├── test_folds.py              分割、統計量が訓練行のみから出ること
-    └── test_invariants_locked.py  KeepOut
+    ├── test_invariants_locked.py  KeepOut
+    ├── test_render.py             表示層。識別子が画面に出ないこと
+    ├── test_request.py            プロンプト解釈。語彙が閉じていること
+    ├── test_no_duplicated_counts.py  同じ件数が2箇所から出ないこと
+    ├── test_contraindications.py  禁忌のうち assertion が届くもの
+    ├── test_six_prompts.py        6本の回帰。既定は記録の再生のみ、
+    │                              OCCAM_SIX=1 で実走（約20分）
+    └── fixtures/six_prompts/      6本の記録と RECORD.md
 ```
 
 ### エンジンは3ビルドある
@@ -832,6 +840,11 @@ assertion を書くこと。文章を書き直すことではない。
 86. 〔文〕 **文字列検索で「無い」を結論しない** — `docs/overbuilt.md` に「製品経路はエンジンを呼ばない」と書いたが、**呼んでいた。**`grep 'engine/target'` で当たらなかったのは、コードがパス結合（`ROOT / "engine" / "target-fp" / ...`）で書かれていてその文字列が現れないから。**無いことの証明に文字列検索を使った。**正しくは import/呼び出しグラフを辿るか、実際に起動して確かめる。2026-10-12 に `py/screenable.py:63` を読んで判明し、`overbuilt.md` と `patent_inventory.md` の両方を訂正した
 87. 〔T〕 **プロセス全体のガードを持つなら、テストは逐次で回す** — `cargo test` は既定で並列。`bulk.rs` の `one_bulk_at_a_time` テストは**意図的に `Bulk` を保持したまま2つ目を作る**（`catch_unwind` で panic を捕まえる設計）ので、その窓の間に別スレッドの `process::tests::learning_and_scoring` が `Bulk::new` を呼ぶと `LIVE_BULKS` の assert が発火する。**テストランナーの偽陽性であって違反ではない。**1回出て、**その後10回再現しなかった。**カウンタをスレッドローカルにすれば黙るが、**スレッドが存在しない本番でガードが弱くなる。**直すのはテストの回し方（`-- --test-threads=1`）。**診断できたのは出力をファイルに落としていたから**（禁忌48）。標準出力だけなら traceback を失い、10回の再現しない再実行で「まぐれ」として閉じていた
 
+88. 〔T〕 **要求に最も近い候補は、sketch が置けない候補である** — 仕様が不確実帯に入るのは、推定が要求の3標準誤差以内のとき、つまり**答えに近いとき。**帯は構造上、最良の候補が住む場所。その行を `feasible` から除外していたので、推奨は「惜しい候補を全部除いた残り」から選ばれていた。500件の要求に対し帯に入った行を数えずに捨て、686が出た。解決すれば正しく置かれ、解決できないとき（ライブラリを読み直せない、exact を切った）は `held_back` に名前を出す。**置けていない候補は、落ちた候補ではない。**その差は画面に出す
+89. 〔文〕 **交絡を切らずに傾きを出さない** — 順位付けの費用を分子数の関数として測るのに、4点を n の昇順で回した。**n と測定順が交絡し、**最小二乗が **−14.9 ms/分子**（2σ有意）を返した。分子あたりの費用が負になることはない。バッチの1点目がコールドスタートで最も遅く、フィットは件数ではなくバッチを測っていた。逆順で回すと同じ1,820件が 299.84 秒（1点目）対 242.92 秒（4点目）。2回目の試みは暖機後の点だけを比べたが、**n=200 の2点が両方とも速いバッチから来ていた**（件数とバッチが再び相関）。1バッチ内で 1,820 を 200 で挟んで取った 9.6 ms/分子は、13,946件で 349 秒を予想して実測 248 秒で外れた。**傾きの推定を3回出して3回撤回した。**残ったのはモデルを置かずに言えることだけ — 200 から 13,946 まで、分子あたり費用は測定できない
+90. 〔T〕 **撤回を記録した文が、撤回対象の文字列検索に当たる** — 禁忌86（文字列検索で「無い」を結論しない）の、テスト側の形。`size=400` が死蔵コードに残っていないことを `assertNotRegex(source, r"size\s*=\s*400")` で確かめたら、**その数字を消したと書いたコメントに当たって落ちた。**`is about not recorded` も同じ。**削除を記録した文は、削除対象の文字列を含む。**挙動を見るテストに書き換える（AST で既定値を読む、関数を呼んで3分岐を確かめる）。同じ日に2回踏んだ
+91. 〔文〕 **費用を根拠に標本化するなら、費用を測ってから** — `SAMPLE = 1200` は計算を節約しているはずだった。測ったら、200件と13,946件が同じ時間だった（費用は 22,051行×10エポックの学習で、生存数と無関係）。**標本化は時間を一切買わず、偽の合格だけを作っていた。**「時間予算から件数を逆算する」という設計を宣言してから測り、逆算する対象が無いことが分かって設計ごと撤回した。**基準を先に宣言するのは正しいが、宣言の中身が測定と噛み合っているかは別の問題**
+
 ### 変換の待ち行列（〔文〕50件のうち、assertion が書けるもの）
 
 **安いものから。**「assertion が書けるか」で選んでいる。書けないもの（判断・態度に
@@ -1051,7 +1064,8 @@ B3DB 7,805件を**互いに素な7組**に分け、ラベルもモデルも使�
 nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_ingest.py \
     tests/test_descriptors.py tests/test_folds.py tests/test_smiles.py \
     tests/test_invariants_locked.py tests/test_render.py tests/test_request.py \
-    tests/test_no_duplicated_counts.py tests/test_contraindications.py' 2>&1 | tee data/work/tests.log
+    tests/test_no_duplicated_counts.py tests/test_contraindications.py \
+    tests/test_six_prompts.py' 2>&1 | tee data/work/tests.log
 nix-shell --run 'cd engine && cargo test --release -- --test-threads=1'
 nix-shell --run 'OCCAM_FACTORS="1 10 100 1000" python3 -m unittest tests/test_memory_invariant.py'
 ```

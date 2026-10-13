@@ -120,6 +120,25 @@ NUMERIC = {
     },
 }
 
+# ASKING FOR A RANKED TOP N IS NOT A REQUIREMENT, AND IS NOT NOTHING EITHER
+#
+# "Rank them and give me the top 50" went into the unread list, which is
+# correct -- no knob is being set, and this tool emits no molecules -- and
+# that was the end of it. Thirty lines further down the same run measured the
+# set and reported that the model cannot order it, which is the direct answer
+# to what was asked, and the two were never joined. A reader who skimmed saw
+# their request listed as not read, and separately a verdict about ordering,
+# and nothing said these were the same subject.
+#
+# Recorded here so the verdict can be stated against the request. It sets
+# nothing: the vocabulary stays closed and the deliverable is untouched.
+RANKING_REQUEST = [
+    (r"\b(?:rank|order|sort)\s+(?:them|these|those|it|the\s+\w+)\b", None),
+    (r"\b(?:top|best|highest[\s-]*(?:scoring|ranked)?)\s+(\d+)\b", "n"),
+    (r"\b(?:give|show|list)\s+me\s+the\s+(?:top|best)\s+(\d+)\b", "n"),
+    (r"\branked?\s+(?:list|order)\b", None),
+]
+
 # Words that mark a requirement as not negotiable. The first version of this
 # parser set every requirement to relaxable, so "molecular weight strictly
 # under 450" was read as a value to loosen -- and the proposer duly offered to
@@ -221,6 +240,17 @@ LIBRARY_BARRIER = {
 # mentions it. If it does not, it is reported as a word that looks like a
 # target and was not taken as one, which is checkable, rather than silently
 # dropped or silently promoted.
+#
+# KNOWN LIMITATION, LEFT AS IT IS: the {4,} requires four characters before
+# the suffix, so short real enzyme names -- lipase, urease, DNase -- are not
+# even recorded as candidates. They are missed rather than misread. Lowering
+# it to {2,} would catch them and also catch `case`, `base`, `phase` and
+# `erase`, each of which would then be checked against the evidence and, on
+# the one request where a label happened to mention it, promoted. The false
+# negative loses a candidate the requester can restate as "an inhibitor of
+# lipase", which the closed construction above reads. The false positive
+# stops a run before anything is screened, which is what `purchase` did. The
+# asymmetry decides it.
 NAMED_TARGET = [
     r"\binhibitors?\s+(?:of|for)\s+(?:bacterial\s+|the\s+)?([a-z][a-z\- ]{3,30}?)\b",
     r"\b([a-z][a-z\-]{3,25})\s+inhibitors?\b",
@@ -435,6 +465,19 @@ def parse(prose):
         consumed.append(match.span())
         spec.setdefault("target_candidates", []).append(name)
 
+    # A request to rank. Not consumed: it is not a requirement and the unread
+    # list should still show it as something this tool did not act on. What
+    # changes is that the ordering verdict can now be stated against it.
+    for pattern, kind in RANKING_REQUEST:
+        match = re.search(pattern, text)
+        if not match:
+            continue
+        asked = spec.setdefault("asked_to_rank",
+                                {"phrases": [], "top_n": None})
+        asked["phrases"].append(match.group(0).strip())
+        if kind == "n" and asked["top_n"] is None:
+            asked["top_n"] = int(match.group(1))
+
     notes["unread"] = _unmatched_spans(prose, consumed)
     return spec, notes
 
@@ -605,6 +648,12 @@ def main():
     parser.add_argument("--no-screenable", action="store_true",
                         help="skip the two verdicts about what a screen would "
                              "establish (they cost one scoring pass over a sample)")
+    parser.add_argument("--full", action="store_true",
+                        help="measure the ordering verdict on every survivor, "
+                             "however many there are. Without it a set past "
+                             "the measured range gets a verdict the sample "
+                             "cannot settle, and the run says what --full "
+                             "would cost")
     args = parser.parse_args()
 
     # Made before anything is read, so an unwritable --out-dir is a sentence
@@ -932,7 +981,7 @@ def main():
                     f"on.", hanging=2):
                 print(line)
         else:
-            body = screenable_mod.report(survivors)
+            body = screenable_mod.report(survivors, full=args.full)
             screen_body = body
 
             # Computed before the report is printed so that the count of what
@@ -950,6 +999,13 @@ def main():
                 screen_cost = cost
 
             screenable_mod.show(body, cost)
+            # The ordering verdict, said against the request that asked for an
+            # order. "Rank them and give me the top 50" was listed as unread
+            # and the verdict that answers it was printed thirty lines away.
+            for line in render_mod.ranking_answer(
+                    spec.get("asked_to_rank"),
+                    body["rankability"]["verdict"]):
+                print(line)
             (args.out_dir / "screenable.json").write_text(
                 json.dumps(body, indent=2) + "\n")
             if cost is not None:

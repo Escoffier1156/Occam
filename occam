@@ -26,6 +26,9 @@ usage: occam                       type the request at the prompt
   --no-exact        skip the exact recount of the frontier (faster, estimates)
   --no-screenable   skip the verdicts about what a screen would establish
   --no-measure      skip the count of what would have to be measured
+  --full            measure the ordering verdict on every survivor, however
+                    many there are. Without it a set past the measured range
+                    is reported as not settled, with what --full would cost
   --out-dir DIR     where request.json and the rest are written
 
 What can be asked for is in docs/prompt_format.md. The vocabulary is closed:

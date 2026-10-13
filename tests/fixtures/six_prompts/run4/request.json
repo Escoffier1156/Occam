@@ -1,0 +1,39 @@
+{
+  "goal": "256 distinct scaffolds from the dicationic ZINC library, primary amine strictly required, rotatable bonds at most 5, molecular weight under 450. Rank them and give me the top 50 to purchase.",
+  "library": "data/work/zinc_P",
+  "deliverable": {
+    "distinct_scaffolds": 256
+  },
+  "requirements": [
+    {
+      "knob": "nitrogen",
+      "setting": "primary_amine",
+      "strict": true
+    },
+    {
+      "knob": "rotatable",
+      "setting": "rotatable_le_5",
+      "strict": false
+    },
+    {
+      "knob": "weight",
+      "setting": "mw_under_450",
+      "strict": false
+    }
+  ],
+  "library_matched": {
+    "phrase": "dicationic zinc",
+    "pattern": "(?:\\+2|\\bdication(?:ic)?\\b|\\bmultiply\\s+charged\\b)[^.]{0,40}?\\bzinc\\b"
+  },
+  "target_candidates": [
+    "purchase"
+  ],
+  "asked_to_rank": {
+    "phrases": [
+      "rank them",
+      "top 50",
+      "give me the top 50"
+    ],
+    "top_n": 50
+  }
+}

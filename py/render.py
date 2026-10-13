@@ -209,6 +209,46 @@ def provenance(value):
     return str(value).replace("_", " ")
 
 
+def ranking_answer(asked, rank_verdict):
+    """The ordering verdict, stated against the request that asked for it.
+
+    A request for a ranked top N is not a requirement and goes in the unread
+    list, which is right. But the run then measures whether the model can
+    order the set at all, thirty lines below, and the two were never joined:
+    the reader saw their request listed as not acted on, and separately a
+    verdict about ordering, with nothing saying these were the same subject.
+
+    Returns [] when nothing was asked, so the join only appears where there is
+    a request to join it to.
+    """
+    if not asked or not asked.get("phrases"):
+        return []
+    n = asked.get("top_n")
+    what = f"the top {n:,}" if n else "a ranked list"
+    head = f"you asked for {what}."
+    if rank_verdict == "not_answerable":
+        return wrap(f"{head} It cannot be drawn from this set: the scores are "
+                    f"too tied for the order to be the model's, so whatever "
+                    f"broke the tie would be choosing them. The verdict above "
+                    f"is about this request.", indent=2, hanging=4)
+    if rank_verdict == "not_settled_at_this_sample":
+        return wrap(f"{head} Whether it can be drawn is not settled by what "
+                    f"was measured, and must not be drawn on the strength of "
+                    f"the figure above. The verdict above is about this "
+                    f"request.", indent=2, hanging=4)
+    if rank_verdict == "not_measurable":
+        return wrap(f"{head} Whether it can be drawn was not measured: too "
+                    f"few molecules survive to tell an order from a "
+                    f"tie-break.", indent=2, hanging=4)
+    # Answerable, and still not produced. The verdict says the order would be
+    # the model's; it does not make this tool the thing that hands over a list.
+    return wrap(f"{head} The model can order this set, so such a list would "
+                f"be its ordering rather than a tie-break -- but no molecules "
+                f"are emitted here. What the verdict licenses is running the "
+                f"screen, not receiving the list from this tool.",
+                indent=2, hanging=4)
+
+
 def barrier_sentence(library, barrier):
     """Which barrier the library is about, as one of three statements.
 
@@ -384,6 +424,11 @@ def answer(spec, result, body=None, cost=None, library=None):
         if control:
             out.append(f"    positive control on that verdict: "
                        f"{control_verdict(control)}")
+        # A reader who stops at this block is the reader who asked for a top
+        # N. The verdict two lines up is the answer to it, and saying so here
+        # is the difference between a verdict and an answer.
+        out += ranking_answer(spec.get("asked_to_rank") if spec else None,
+                              rank.get("verdict"))
 
     if cost and cost.get("measurable"):
         out.append("")

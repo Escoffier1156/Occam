@@ -1,0 +1,118 @@
+{
+  "survivors": 1820,
+  "sample_size": 1200,
+  "sample_seed": 0,
+  "rankability": {
+    "verdict": "not_answerable",
+    "sampled": 1820,
+    "of_survivors": 1820,
+    "measured_every_survivor": true,
+    "distinct_share": 0.4648,
+    "tie_share": 0.5352,
+    "most_common_value": -2.866847,
+    "most_common_count": 6,
+    "floor_distinct": 0.5,
+    "floor_basis": "declared, not derived: no published source states a distinct-share floor. The reasoning is that at half the scores duplicated, half of any top N is placed by the tie-break rather than by the model, which argues for a floor near the middle of the range and does not single out this value over 0.45 or 0.55. Read a verdict near the floor as near a convention",
+    "ceiling_single_value": 0.05,
+    "logit_range": [
+      -5.2297,
+      2.9926
+    ],
+    "fitted_on": "/home/shogo/occam/data/work/imi_fp/features.parquet",
+    "not_comparable": "this share moves with the number measured, so it does not compare with another specification's unless both were measured on the same count",
+    "means": "the model cannot order this set: 46.5% of scores are distinct against a 50% floor declared before the run, measured on 1,820 molecules. A top N drawn from it would be settled by the tie-break, not by the model.",
+    "means_lines": [
+      "the model cannot order this set: 46.5% of scores are distinct against a 50% floor declared before the run, measured on 1,820 molecules. A top N drawn from it would be settled by the tie-break, not by the model."
+    ]
+  },
+  "applicability": {
+    "verdict": "answerable_but_extrapolating",
+    "sampled": 1200,
+    "of_survivors": 1820,
+    "training_structures": 22051,
+    "nearest_tanimoto": {
+      "median": 0.217,
+      "max": 0.371,
+      "min": 0.149
+    },
+    "share_at_or_above": 0.0,
+    "threshold": 0.4,
+    "threshold_source": "nearest-neighbour Tanimoto cut-offs of 0.4 to 0.6 are common applicability-domain practice; 0.4 is the lenient end of that band",
+    "control": {
+      "test": "hold 300 rows out of IMI-COMBINE and measure each one's greatest Tanimoto to the remaining 21,752",
+      "expected": "high, because the molecules come from the same collection",
+      "measured": {
+        "median": 0.747,
+        "p5": 0.358,
+        "max": 1.0,
+        "share_at_or_above_0_4": 0.94
+      },
+      "verdict": "pass",
+      "what_it_rules_out": "a fingerprint radius or bit-length mismatch, or salts and stereochemistry left on one side. Any of those would depress the control too."
+    },
+    "means": "100.0% of this set sits outside the structures the model was fitted on, and none of it is inside (median 0.217, max 0.371 against a 0.4 threshold). An order can be produced; its meaning is not established."
+  },
+  "activity_model": {
+    "known": true,
+    "source": "data/work/imi_clean.parquet",
+    "rows": 22051,
+    "labels": {
+      "positive": 8600,
+      "negative": 13451
+    },
+    "column": "binding",
+    "means": "the gram-positive label, used as a stand-in for target binding without the permeability barrier",
+    "note": "IMI-COMBINE carries four organism classes (gram-negative, gram-positive, fungi, acid-fast) with pMIC values. Which one to fit on is a decision, not a default."
+  },
+  "suggested_revisions": {
+    "activity prediction": {
+      "problem": "the set sits outside the structures the model was fitted on",
+      "measured_alternatives": [
+        {
+          "training_set": "B3DB",
+          "measures": "blood-brain barrier",
+          "structures": 7805,
+          "median_nearest": 0.22,
+          "max_nearest": 0.418,
+          "inside_threshold": 0.0067,
+          "tied_with": [
+            "IMI-COMBINE"
+          ],
+          "tie_note": "B3DB and IMI-COMBINE are level within the precision these medians are reported to; neither is nearer"
+        },
+        {
+          "training_set": "IMI-COMBINE",
+          "measures": "activity",
+          "structures": 22051,
+          "median_nearest": 0.217,
+          "max_nearest": 0.355,
+          "inside_threshold": 0.0
+        },
+        {
+          "training_set": "CHAMP",
+          "measures": "permeability",
+          "structures": 1132,
+          "median_nearest": 0.185,
+          "max_nearest": 0.333,
+          "inside_threshold": 0.0
+        },
+        {
+          "training_set": "GramNegAccum",
+          "measures": "permeability",
+          "structures": 197,
+          "median_nearest": 0.149,
+          "max_nearest": 0.228,
+          "inside_threshold": 0.0
+        }
+      ],
+      "what_this_means": "the training set listed first is the one this library is actually nearest to. If none reaches the threshold, no model fitted on what is here can speak about this library, and the revision is data rather than a setting."
+    },
+    "ranking": {
+      "problem": "only 46.5% of scores are distinct against a 50% floor",
+      "measured_alternatives": "a looser specification spreads the scores further, so one of the alternatives on the frontier may clear the floor. Which of them does is measurable and has not been measured here",
+      "what_this_means": "the set can still be screened; what cannot be done is to take the top N from it, because the tie-break rather than the model would choose them"
+    }
+  },
+  "molecules_emitted": false,
+  "note": "this module answers what a screen would establish. It does not return molecules; choosing which to make is the researcher's."
+}

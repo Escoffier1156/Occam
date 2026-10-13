@@ -1,0 +1,214 @@
+{
+  "measurable": true,
+  "dataset": {
+    "set": "ZINC22 tranche H29P240, -P slice (+2 or more at pH 7.4), 17,775 compounds",
+    "target": null,
+    "target_note": "every label in the evidence is binary active/inactive, so this set is not a hit set against anything -- it is the subset of a catalogue that satisfies the structural requirements that were asked for"
+  },
+  "fingerprint": "Morgan radius 4, 2048 bits (ECFP8)",
+  "fingerprint_note": "the threshold's strictness is a property of this fingerprint. The same number on a smaller radius is a looser bar",
+  "representative": {
+    "selected": false,
+    "why_not": "this is a count of what would have to be measured, not a list of molecules. No compound is emitted",
+    "criterion_if_selected": "the Butina cluster centroid, which RDKit returns as the first member of each cluster. Structural and reproducible",
+    "criterion_not_available": "highest activity in the cluster, the usual choice, needs activity for these compounds. ZINC22 is unmeasured; the ingest record for this library records that as 'no label'"
+  },
+  "set_size": 1200,
+  "clustered": 1200,
+  "unreadable": 0,
+  "covered_at": 0.4,
+  "threshold_source": "the applicability threshold py/screenable.py uses; nearest-neighbour Tanimoto cut-offs of 0.4 to 0.6 are common practice and 0.4 is the lenient end",
+  "compounds_to_measure": 229,
+  "neighbourhood_sizes": {
+    "largest": 46,
+    "median": 4,
+    "singletons": 41
+  },
+  "for_half_the_set": 38,
+  "for_four_fifths": 108,
+  "curve": [
+    {
+      "compounds_measured": 1,
+      "share_covered": 0.0383
+    },
+    {
+      "compounds_measured": 2,
+      "share_covered": 0.07
+    },
+    {
+      "compounds_measured": 3,
+      "share_covered": 0.0983
+    },
+    {
+      "compounds_measured": 4,
+      "share_covered": 0.1217
+    },
+    {
+      "compounds_measured": 5,
+      "share_covered": 0.145
+    },
+    {
+      "compounds_measured": 6,
+      "share_covered": 0.1642
+    },
+    {
+      "compounds_measured": 7,
+      "share_covered": 0.1817
+    },
+    {
+      "compounds_measured": 8,
+      "share_covered": 0.1992
+    },
+    {
+      "compounds_measured": 9,
+      "share_covered": 0.2142
+    },
+    {
+      "compounds_measured": 10,
+      "share_covered": 0.2292
+    },
+    {
+      "compounds_measured": 11,
+      "share_covered": 0.2442
+    },
+    {
+      "compounds_measured": 12,
+      "share_covered": 0.2592
+    },
+    {
+      "compounds_measured": 13,
+      "share_covered": 0.2725
+    },
+    {
+      "compounds_measured": 14,
+      "share_covered": 0.2858
+    },
+    {
+      "compounds_measured": 15,
+      "share_covered": 0.2975
+    },
+    {
+      "compounds_measured": 16,
+      "share_covered": 0.3092
+    },
+    {
+      "compounds_measured": 17,
+      "share_covered": 0.3208
+    },
+    {
+      "compounds_measured": 18,
+      "share_covered": 0.3325
+    },
+    {
+      "compounds_measured": 19,
+      "share_covered": 0.3425
+    },
+    {
+      "compounds_measured": 20,
+      "share_covered": 0.3525
+    },
+    {
+      "compounds_measured": 21,
+      "share_covered": 0.3625
+    },
+    {
+      "compounds_measured": 22,
+      "share_covered": 0.3725
+    },
+    {
+      "compounds_measured": 23,
+      "share_covered": 0.3825
+    },
+    {
+      "compounds_measured": 24,
+      "share_covered": 0.3917
+    },
+    {
+      "compounds_measured": 25,
+      "share_covered": 0.4008
+    },
+    {
+      "compounds_measured": 26,
+      "share_covered": 0.41
+    },
+    {
+      "compounds_measured": 27,
+      "share_covered": 0.4183
+    },
+    {
+      "compounds_measured": 28,
+      "share_covered": 0.4267
+    },
+    {
+      "compounds_measured": 29,
+      "share_covered": 0.435
+    },
+    {
+      "compounds_measured": 30,
+      "share_covered": 0.4433
+    },
+    {
+      "compounds_measured": 31,
+      "share_covered": 0.4517
+    },
+    {
+      "compounds_measured": 32,
+      "share_covered": 0.46
+    },
+    {
+      "compounds_measured": 33,
+      "share_covered": 0.4667
+    },
+    {
+      "compounds_measured": 34,
+      "share_covered": 0.4733
+    },
+    {
+      "compounds_measured": 35,
+      "share_covered": 0.48
+    },
+    {
+      "compounds_measured": 36,
+      "share_covered": 0.4867
+    },
+    {
+      "compounds_measured": 37,
+      "share_covered": 0.4933
+    },
+    {
+      "compounds_measured": 38,
+      "share_covered": 0.5
+    },
+    {
+      "compounds_measured": 39,
+      "share_covered": 0.5067
+    },
+    {
+      "compounds_measured": 40,
+      "share_covered": 0.5133
+    }
+  ],
+  "sensitivity": [
+    {
+      "covered_at": 0.3,
+      "compounds": 147
+    },
+    {
+      "covered_at": 0.4,
+      "compounds": 229
+    },
+    {
+      "covered_at": 0.5,
+      "compounds": 351
+    },
+    {
+      "covered_at": 0.6,
+      "compounds": 466
+    }
+  ],
+  "sensitivity_spread": 3.17,
+  "what_this_is": "a coverage requirement: measuring one compound per neighbourhood leaves no part of the set further than the threshold from something measured",
+  "what_this_is_not": "a promise that a model fitted on those measurements ranks the rest correctly. That is a separate question, and py/answerable.py is the test for it",
+  "by_fingerprint": null,
+  "note": null
+}
