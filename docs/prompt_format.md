@@ -1,7 +1,11 @@
 # Occam へのプロンプト：形式と注意点
 
-2026-10-10。内容は `py/occam.py` と `py/knobs.py` の実装から転記。
-**語彙を足したらこのファイルも直す。**ずれたら実装が正しい。
+2026-10-13。内容は `py/occam.py`・`py/knobs.py`・`py/render.py`・
+`py/screenable.py` の実装から転記。**語彙を足したらこのファイルも直す。**
+ずれたら実装が正しい。
+
+本文の綴りは全行を parse に通して確かめてあります（ライブラリ11、nitrogen 6、
+rotatable 10、weight 5、成果物3、strict 6、停止14、破棄8）。
 
 ```bash
 occam "散文のプロンプト"          # 端末での利便性
@@ -192,9 +196,13 @@ rotatable bonds at most 5                → 緩和してよい
 
 ---
 
-## 5. 書いてはいけないもの
+## 5. 要件にならないもの
 
-**データについての事実や数値。**入力は要求だけを受け取る。
+2種類あり、扱いが違います。**事実の主張は破棄され、順位付けの要求は答えが返ります。**
+
+### データについての事実や数値 — 破棄される
+
+**入力は要求だけを受け取る。**
 
 | 書くと | 扱い |
 |---|---|
@@ -204,6 +212,7 @@ rotatable bonds at most 5                → 緩和してよい
 | `pre-packed` `verified` `confirmed` `proven` `established` | 検証状態の主張 → **破棄** |
 
 破棄したものは理由付きで一覧表示される。**自分の誤りが見える仕組み。**
+
 
 実例（2026-10-09 に実際に止まったもの）：
 
@@ -218,6 +227,28 @@ not taken as input (claims about the data):
 
 このとき実際のライブラリは **1,000,000件**（1億ではない）、AUC 差は **0.0540**（0.071 ではない）だった。
 
+### 順位付けや「上位N件」は、要件にならず、答えは返ります（2026-10-13）
+
+`Rank them and give me the top 50` のような文は **knob を設定しません。**この
+ツールは分子を出さないので、要件としては読まれず、従来どおり「要件として読まな
+かった部分」に出ます。
+
+変わったのは、**その要求に対して順位付けの判定を言うようになったこと**です。
+
+```
+you asked for the top 50. It cannot be drawn from this set: the scores are
+  too tied for the order to be the model's, so whatever broke the tie would
+  be choosing them. The verdict above is about this request.
+```
+
+以前は、要求が「読まなかった部分」に落ち、30行下に「この集合は順位付けできない」
+という判定が別に出て、**両者が同じ話だと誰も言いませんでした。**判定は画面と
+ANSWER ブロックの両方で、要求に対して述べられます。
+
+順位付けが**できる**と出た場合も、分子は出ません。判定が許可するのはスクリーンを
+回すことで、このツールがリストを渡すことではありません。
+
+
 ---
 
 ## 6. 回せない knob
@@ -230,7 +261,37 @@ not taken as input (claims about the data):
 | globularity | eNTRy 第2条件。3D 配座が必要 | 配座生成器。**実装済みだがこのライブラリでは 100% 通過して無効** |
 | スライス | 仕様の `library` で選ぶもので knob ではない | — |
 
-標的名（`-ase` で終わる語、`inhibitor of X`）は自動検出して照合する。
+### 標的の書き方（2026-10-12 に変わりました）
+
+**標的は「位置」で読みます。**`-ase` で終わる語だけでは標的になりません。
+
+| 書き方 | 読まれ方 |
+|---|---|
+| `an inhibitor of transglycosylase` | **標的として照合する** |
+| `a transglycosylase inhibitor` | **標的として照合する** |
+| `against transglycosylase` | **標的として照合する** |
+| `transglycosylase` だけ | 候補として記録し、証拠側にその語を含むラベルがあれば昇格。無ければ報告して走り続ける |
+
+以前は `-ase` で終わる語を見つけた時点で標的に昇格させていました。英語には
+`purchase` `increase` `phrase` `database` `case` のような普通の名詞が同じ形で
+あり、**`purchase` が標的に昇格して、構造条件を評価する前に走行が止まりました。**
+除外語リストを伸ばすのは直し方ではありません（次の普通の語も載っていない）。
+
+昇格しなかった語はこう出ます。
+
+```
+looks like a target, and was not taken as one:
+  "purchase": it ends in -ase, which is the shape of an enzyme name, but no
+    label in the evidence mentions it and nothing in the request puts it where
+    a target goes
+    if it is the target, write it as "an inhibitor of purchase". Ordinary
+      English words end this way too, and one of them stopped a run before
+      anything was screened.
+```
+
+**既知の制限：**接尾辞の前に4文字を要求するので、`lipase` `urease` のような
+短い実在の酵素名は候補にもなりません。**読み違えるのではなく、見落とします。**
+`an inhibitor of lipase` と書けば読みます。
 
 ```
 targets named in the request:
@@ -256,7 +317,50 @@ targets named in the request:
 出典のまま残しています。1パスなので仕様数は所要時間を支配しませんが、**測っていない
 数字を書かないために据え置きます。**
 
-`--limit N` で打ち切れる。**`--dry-run` なら読み取りだけで即時。**
+### フラグ
+
+| | |
+|---|---|
+| `--yes` | 読む前の確認を飛ばす。矛盾の警告を読んだうえで流すときにも使う |
+| `--dry-run` | 読み取りだけで即時。**何が要件に写ったかを確かめる最短の手段** |
+| `--limit N` | N分子で打ち切る |
+| `--no-exact` | 前線の正確な数え直しを省く（推定値になり、そう表示される） |
+| `--no-screenable` | 画面が何を立証するかの判定を省く |
+| `--no-measure` | 適用範囲外のとき、何件測れば閉じるかの計算を省く |
+| `--full` | 順位付けを生存数に関わらず全件で測る（下記） |
+| `--out-dir DIR` | `request.json` ほかの書き出し先 |
+| `--spec FILE` | 散文の代わりに構造化された仕様を読む。**記録・提出用はこちら** |
+
+**`--dry-run` を先に回すのを勧めます。**散文は閉じた語彙への照合なので、要件に
+写らなかった句があれば `nothing in the request was read as a requirement from:`
+に出ます。それを読んでから本番を回せば、20分待ってから取りこぼしに気づくことが
+ありません。
+
+### 順位付けの判定にかかる時間（2026-10-13 実測）
+
+**生存数に依存しません。**費用は学習（22,051行 × 10エポック）で、生存分子の採点は
+その中に消えます。
+
+```
+n=   200   221.89  220.56  196.36   秒
+n=   600   254.78
+n=  1200   262.03
+n=  1820   242.92  236.77
+n= 13946   248.06            ← 70倍読んで同じ時間
+```
+
+だから標本化しません。生存数が **20,000件まで**は全件測ります。それを超えると
+費用が未測定の領域に入るので、判定を保留して所要時間を添えます。`--full` を付け
+れば件数を問わず測ります。
+
+```
+  ordering the survivors: not settled by what was measured
+  ...
+      run it again with --full, which measures all N survivors
+```
+
+20,000 は測定範囲（13,946）の上端をスライス全体（17,775）が収まるまで延長した値で、
+**測定ではなく延長**です。そう書いてあります。
 
 ---
 
@@ -294,30 +398,59 @@ occam "256 distinct scaffolds from the cationic ZINC library, \
 | `an unhindered primary amine` | `primary_amine` |
 | `ZINC22 tranche H29P240, -O slice (+1 at pH 7.4), 636,669 compounds` | `data/work/zinc_O` |
 | `cannot be answered` | `not_answerable` |
+| `not settled by what was measured` | `not_settled_at_this_sample` |
+| `ZINC22 tranche H29P240, -N slice (neutral at pH 7.4), 1,000,000 compounds` | **`data/work/zinc`** |
 
-画面に出る見出しは以下。
+**記録では -N だけパスに文字が付きません。**`-O` は `zinc_O`、`-P` は `zinc_P`、
+`-N` は `zinc`。画面には `-N slice (neutral at pH 7.4)` と出るので読み違えませんが、
+`data/work/*.json` を直接読むときは、**接尾辞の無い `zinc` が中性スライス**で、
+公表された規則が「集積しない」と言っている側であることに注意してください。
+
+画面に出る見出しは以下。**順序もこの通り**で、どれも出ないことがあります。
 
 ```
-read as:                               読み取った内容（必ず表示）
-  library / deliverable                ライブラリと成果物
-  <性質> <要求>  (not negotiable)      要求・出自の論文・譲れるか・knob の注意
-not taken as input (claims about …):   破棄した事実の主張
-refused rather than rounded:           語彙外の値と、有効な候補
-nothing in the request was read …:     要件に写らなかった句  ← 必ず読む
+read as:                                 読み取った内容（必ず表示）
+  library / deliverable                  ライブラリと成果物
+  <性質> <要求>  (not negotiable)        要求・出自の論文・譲れるか・knob の注意
+not taken as input (claims about the data):
+                                         破棄した事実の主張
+refused rather than rounded:             語彙外の値と、有効な候補
+nothing in the request was read as a requirement from:
+                                         要件に写らなかった句  ← 必ず読む
   （機能語だけの断片は件数だけ出る。"every part of the request was read." と
     出たら取りこぼしは無い）
-targets named in the request:          標的の照合結果
-about that library:                    スライスと矛盾判定
-comparing N specifications …:          比較した仕様数と1パスの実測
-requirements that did not change …:    何も絞らなかった要求（旧 [INERT]）
-verdict:                               可否
+looks like a target, and was not taken as one:
+                                         -ase の形だが標的にしなかった語
+targets named in the request:            標的の照合結果
+about that library:                      スライスと矛盾判定
+about these conditions:                  条件がどの障壁についてか（別障壁のとき）
+what to screen instead (measured, on this disk):
+                                         止まったときに読めるスライス
+comparing N specifications …:            比較した仕様数と1パスの実測
+requirements that did not change the result:
+                                         何も絞らなかった要求（旧 [INERT]）
+verdict:                                 可否
+as asked:                                要求どおりの仕様の結果
 the request as asked: / recommended instead:
-                                       緩和が無ければ前者。緩和した要求とその出自
-what would unblock it:                 届かないときに必要なもの
-what a screen … would establish:       順位付けの可否・適用範囲・学習ラベル
-  positive control: passes             **対照。重い判定には必ず付く**
-what could be done instead (measured…): 代替案（実測のみ。化学の提案はしない）
+                                         緩和が無ければ前者。緩和した要求とその出自
+closest specification that did not reach:
+                                         正確に数えて届かなかった最も近い仕様と、
+                                         あと何件か  ← 要求を下げるか広げるかの判断
+what would unblock it:                   届かないときに必要なもの
+what a screen of this specification would establish:
+                                         順位付けの可否・適用範囲・学習ラベル
+  the N% floor is declared, not derived… 床に出典が無いことの開示
+  this rests on …, not proven            標本測定のとき、何に依拠しているか
+  positive control: passes               **対照。重い判定には必ず付く**
+which measured set is nearest …:         代替案（実測のみ。化学の提案はしない）
+you asked for the top N. …               順位付けを要求したときだけ。判定をその
+                                         要求に対して述べる
+========== ANSWER ==========             **最後に全部を1ブロックで。**
+                                         可否 → 画面が何を立証するか → 次に何を測るか
 ```
+
+**ANSWER ブロックだけ読めば決められるように作ってあります。**上の詳細はその数字が
+どこから来たかで、答えを検算するためのものです。
 
 `data/work/` に `request.json` / `sweep.json` / `proposal.json` / `screenable.json` が残る。
 
@@ -327,8 +460,10 @@ what could be done instead (measured…): 代替案（実測のみ。化学の�
 
 散文パーサは**閉じた語彙への決定的な照合**で、LLM を使っていない。だから：
 
-- **語彙外の句は捨てられる。**`nothing was read from:` を必ず読むこと。
-  要件だったのに捨てられている可能性がある
+- **語彙外の句は捨てられる。**`nothing in the request was read as a requirement from:`
+  を必ず読むこと。要件だったのに捨てられている可能性がある（この見出しは
+  §9 の一覧と同じ文字列です。以前ここには短い別の文字列が書かれていて、
+  画面には存在しませんでした）
 - `effectively penetrate the outer membrane` のような句は**何にも写らない**
 
 **論文・提出物・特許の記録には `--spec request.json` を使う。**

@@ -26,6 +26,7 @@ DOCUMENTS = {
     "patent": {
         "source": ROOT / "docs" / "patent_inventory.md",
         "out": ROOT / "docs" / "pdf" / "patent_candidates.html",
+        "date": "2026-10-12",
         "title": "Occam — 技術の棚卸し（特許相談用）",
         "subtitle": "グラム陰性菌スクリーニングの成立判定システム",
         "start": "**判断できないことを先に書く。**",
@@ -37,6 +38,7 @@ DOCUMENTS = {
     "report": {
         "source": ROOT / "docs" / "final_report.md",
         "out": ROOT / "docs" / "pdf" / "final_report.html",
+        "date": "2026-10-12",
         "title": "Occam — 最終報告書",
         "subtitle": "グラム陰性菌スクリーニングの成立判定システム",
         "start": "## 0. 要約",
@@ -44,9 +46,22 @@ DOCUMENTS = {
         "warn": "<strong>すべての数字は現行コードでの実測。</strong>"
                 "撤回したものは撤回として残す。外部検証はゼロ、実験はゼロ。",
     },
+    "prompt": {
+        "source": ROOT / "docs" / "prompt_format.md",
+        "out": ROOT / "docs" / "pdf" / "prompt_format.html",
+        "date": "2026-10-13",
+        "title": "Occam — プロンプトの書き方と条件",
+        "subtitle": "閉じた語彙への決定的な照合。推測はしない",
+        "start": "## 1. 必須の4つ",
+        "drop": None,
+        "warn": "<strong>本文の綴りは全行を parse に通して確かめてある。</strong>"
+                "ライブラリ11・nitrogen 6・rotatable 10・weight 5・成果物3・"
+                "strict 6・停止14・破棄8。実装とずれたら実装が正しい。",
+    },
     "algorithms": {
         "source": ROOT / "docs" / "algorithms.md",
         "out": ROOT / "docs" / "pdf" / "algorithms.html",
+        "date": "2026-10-12",
         "title": "Occam — アルゴリズム解剖書",
         "subtitle": "全モジュールの機構・定数・不変条件",
         "start": "## 0. 読み方",
@@ -150,6 +165,11 @@ def convert(body):
 
 
 def build(spec):
+    # Every document states its own date. It used to be one literal in
+    # the shared template, so three documents written on different days
+    # all carried the day the first one was rendered.
+    if "date" not in spec:
+        raise KeyError(f'{spec["title"]!r} has no "date"')
     src = spec["source"]
     if not src.exists():
         print(f"skip: {src.relative_to(ROOT)} does not exist")
@@ -164,7 +184,7 @@ def build(spec):
 <style>{CSS}</style></head><body>
 <div class="head">
   <h1>{spec["title"]}</h1>
-  <p class="sub">2026-10-12 ／ {spec["subtitle"]}</p>
+  <p class="sub">{spec["date"]} ／ {spec["subtitle"]}</p>
 </div>
 <div class="warn">{spec["warn"]}</div>
 {chr(10).join(convert(body))}
