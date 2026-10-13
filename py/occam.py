@@ -555,6 +555,32 @@ def show(spec, notes, library_info=None):
                     requirement["strict"], width):
                 print(line)
 
+    # A KNOB NOBODY NAMED IS STILL SET, AND WAS NOT ON THE SCREEN
+    #
+    # An unwritten knob takes settings_of(knob)[0], the strictest setting, in
+    # the baseline this run is built from. That is the right default -- it
+    # concedes nothing on the requester's behalf -- but the echo listed only
+    # what the request named, so a request naming no conditions was answered
+    # under three of them and said nothing about any.
+    #
+    # This block exists to say what was read. A setting applied without being
+    # asked for is exactly what it is for.
+    named = {r["knob"] for r in spec["requirements"] if "knob" in r}
+    defaulted = [k for k in knobs_mod.KNOBS if k not in named]
+    if defaulted:
+        print()
+        for knob in defaulted:
+            setting = knobs_mod.settings_of(knob)[0]["name"]
+            for line in render_mod.requirement_lines(knob, setting, False,
+                                                     width):
+                print(line)
+        for line in render_mod.wrap(
+                f"the request named no {render_mod.or_list([render_mod.prop(k) for k in defaulted])} "
+                f"condition, so the strictest registered setting was used. "
+                f"Naming one replaces it; it is not a floor this tool keeps.",
+                indent=2, hanging=4):
+            print(line)
+
     if notes["dropped_claims"]:
         print("\nnot taken as input (claims about the data):")
         for item in notes["dropped_claims"]:

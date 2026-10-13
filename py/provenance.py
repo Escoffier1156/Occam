@@ -91,7 +91,23 @@ def identify(part_dir):
             "source": Path(source).name,
             "predicted_charge_at_ph_7_4": body["predicted_charge"],
             "means": body["name"],
+            # WHAT IS ON THIS DISK, AND HOW BIG THE SLICE IS
+            #
+            # These were one number, `rows`, printed as "N compounds" after the
+            # slice's name -- so the phrase said the slice held what had been
+            # ingested. True for -O and -P, read in full. Not true for -N: the
+            # source has 4,572,322 lines and the ingest took 1,000,000, so the
+            # screen stated a slice size wrong by 4.6x, and stated it in the
+            # same words it used for the two complete slices.
+            #
+            # `slice_rows` is absent from older sidecars, which is why it falls
+            # back rather than failing: a record written before this was
+            # measured cannot be made to say what it does not know.
             "rows": record.get("rows_written"),
+            "slice_rows": record.get("slice_rows"),
+            "capped": (record.get("slice_rows") is not None
+                       and record.get("rows_written") is not None
+                       and record["rows_written"] < record["slice_rows"]),
             # This used to end "the SMILES in every slice are written
             # neutral", which was too strong: three of the four slices sampled
             # hold molecules drawn with a formal charge. The measurement, with

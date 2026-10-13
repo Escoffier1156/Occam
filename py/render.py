@@ -455,8 +455,17 @@ def library_phrase(info):
     """
     if not info.get("known"):
         return f"{info.get('library', '(not named)')} - slice not identified"
-    rows = info.get("rows")
-    count = f"{rows:,} compounds" if isinstance(rows, int) else "count unrecorded"
+    # "N compounds" after a slice's name reads as the slice's size, and for
+    # -N it was the size of the ingest: 1,000,000 read out of 4,572,322. Two
+    # of the three slices are complete, so the same words meant two different
+    # things depending on which one a reader was looking at.
+    rows, total = info.get("rows"), info.get("slice_rows")
+    if not isinstance(rows, int):
+        count = "count unrecorded"
+    elif info.get("capped") and isinstance(total, int):
+        count = f"{rows:,} of its {total:,} compounds read"
+    else:
+        count = f"{rows:,} compounds"
     source = info.get("source") or ""
     match = _TRANCHE.match(source)
     tranche = f"tranche {match.group('tranche')}, " if match else ""

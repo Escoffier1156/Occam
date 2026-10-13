@@ -46,9 +46,13 @@ blockquote { margin: 2.5mm 0; padding: 2mm 3mm; background: #fbf7e8;
 <tr><th></th><th>書き方</th><th>無いと</th></tr>
 <tr><td><strong>ライブラリ</strong></td><td><code>cationic ZINC</code> など（下表）</td><td><code>stopping: no library named</code></td></tr>
 <tr><td><strong>成果物</strong></td><td><code>256 distinct scaffolds</code></td><td><code>stopping: no deliverable named</code></td></tr>
-<tr><td><strong>条件</strong></td><td>下の knob から</td><td>既定（最も厳しい設定）になる</td></tr>
+<tr><td><strong>条件</strong></td><td>下の knob から</td><td><strong>書かなければ</strong>既定（最も厳しい設定）。<strong>書いて語彙外なら停止</strong></td></tr>
 <tr><td><strong>譲れるか</strong></td><td><code>strictly</code> などを添える</td><td><strong>すべて「緩和してよい」になる</strong></td></tr>
 </table>
+<p><strong>「書かない」と「書いたが語彙外」は別です。</strong>書かなければ最も厳しい設定が入り、</p>
+<p>**それが <code>read as:</code> に `the request named no ... condition, so the strictest</p>
+<p>registered setting was used` と明示されます。**黙って適用されることはありません。</p>
+<p>語彙にない値（回転結合6、MW 500 など）を書いた場合は、丸めずに停止します。</p>
 <h3>成果物は「何個の何か」を書く</h3>
 <pre>
 256 distinct scaffolds     ← 可
@@ -57,19 +61,83 @@ blockquote { margin: 2.5mm 0; padding: 2mm 3mm; background: #fbf7e8;
 </pre>
 <p><strong>判定基準になるのは scaffold の数</strong>で、生存数ではない。成果物が「1骨格1代表」なので、</p>
 <p>制約は骨格の数に掛かる。</p>
+<p><strong>骨格の定義：Bemis-Murcko 骨格</strong>（RDKit <code>MurckoScaffoldSmiles</code>）。環系と、環どうしを</p>
+<p>つなぐリンカーだけを残し、側鎖を落とした構造。<strong>同一骨格は1件</strong>と数えます。画面にも</p>
+<p>`counted as Bemis-Murcko frameworks (RDKit MurckoScaffoldSmiles), one per distinct</p>
+<p>framework` と出ます。判定がこの数で決まるので、定義が違えば答えが違います。</p>
+<h2>1.5 何を頼むか — 成果物を境目に置く</h2>
+<p><strong>この道具が返すのは frontier です。</strong>「成立する／しない」の一点ではなく、*どの条件を</p>
+<p>どれだけ動かせば成立するか*という境界。だから**成果物の数をどこに置くかで、返ってくる</p>
+<p>情報量が変わります。**</p>
+<p>同じライブラリ（-P、17,775件）、同じ条件（一級アミン strict、回転結合≤5、MW&lt;450）で、</p>
+<p>要求数だけを変えた実測です。</p>
+<table>
+<tr><th>要求</th><th>返るもの</th><th>読み取れること</th></tr>
+<tr><td>120骨格</td><td><strong>要求どおり成立。</strong>430分子・187骨格</td><td>成立は分かる。<strong>どの条件が効いているかは分からない</strong></td></tr>
+<tr><td>256骨格</td><td>不成立。回転結合を7に緩めて成立（1,200分子・475骨格）</td><td><strong>1段で届く。</strong>動かすべき軸が1つに特定される</td></tr>
+<tr><td>500骨格</td><td>不成立。回転結合を9に緩めて成立（1,820分子・686骨格）。<strong>ただし7で494骨格、あと6件</strong></td><td><strong>境界そのものが見える。</strong>「要求を494に下げる」「ライブラリを広げる」「2段緩める」の3択</td></tr>
+</table>
+<p><strong>低く置きすぎると「成立しました」しか返りません。</strong>187骨格ある場所に120を頼んでも、</p>
+<p>余裕がどれだけあるかは出ますが、何が制約かは出ません。</p>
+<p><strong>境目に置くと、制約の構造が返ります。</strong>500を頼んだときの「回転結合7で494、あと6件」</p>
+<p>は、要求を下げるかライブラリを広げるかという判断に直接効きます。686を見せられるより</p>
+<p>役に立ちます。</p>
+<p>**まず <code>--dry-run</code> で読み取りを確認し、試運転を -P（17,775件）で回して境目を探し、</p>
+<p>本番を -O（636,669件）で回す**のが実際の使い方です。</p>
+<p><strong>-P の全段で 5.8〜20分</strong>（実測、逐次実行）。掃引そのものは 17,775件を23〜45秒で</p>
+<p>読み終わりますが、そこに骨格の正確な数え直し（前線1仕様につきライブラリ1パス）と</p>
+<p>順位付けの測定（§9、約4分）と適用範囲の測定が乗ります。**「-P なら1分」は掃引だけの</p>
+<p>時間で、答えが返るまでの時間ではありません。**<code>--no-screenable --no-measure</code> を付け</p>
+<p>れば掃引と数え直しだけになります。</p>
+<h3>スライスを変えるだけで答えが変わる</h3>
+<p>条件を1つも変えず、<strong>ライブラリのスライスだけ</strong>を変えた実測（要求120骨格、一級アミン</p>
+<p>strict、<code>--limit 20000</code>）。</p>
+<blockquote>この 20,000 は<strong>読み込みの打ち切り</strong>で、§9 の「20,000件までは全件測る」という</blockquote>
+<blockquote><strong>順位付け測定の上限</strong>とは別の量です。同じ数字が偶然並んでいます。</blockquote>
+<table>
+<tr><th>スライス</th><th>結果</th></tr>
+<tr><td>-N（中性）</td><td><strong>上限39骨格。不成立</strong></td></tr>
+<tr><td>-O（+1）</td><td><strong>119骨格。</strong>MW を600に緩めて<strong>124骨格で成立</strong></td></tr>
+</table>
+<p><strong>同じ要求が、スライスの選択だけで不成立から成立に変わります。</strong>一級アミンの含有率が</p>
+<p>-N 0.21% / -O 2.46% / -P 13.06%（62倍）だからです。**スライスを書き忘れると -N が選ばれ、</p>
+<p>最も不利な場所で測ることになります**（そのため矛盾停止が入っています）。</p>
 <h2>2. ライブラリ（スライスを必ず書く）</h2>
 <p>ZINC22 は tranche を <strong>pH 7.4 の予測プロトン化状態</strong>で分けている。</p>
 <p><strong>描画上の形式電荷ではない。</strong>どのスライスを読むかで答えが変わる。</p>
 <table>
 <tr><th>書き方</th><th>スライス</th><th>件数</th><th>備考</th></tr>
-<tr><td><code>cationic ZINC</code> / <code>protonated ZINC</code> / <code>ZINC O slice</code> / <code>+1 ZINC</code></td><td><strong>-O（+1）</strong></td><td>636,669</td><td><strong>推奨。</strong>一級アミンが -N の 12倍</td></tr>
-<tr><td><code>ZINC +2 slice</code> / <code>dicationic ZINC</code> / <code>multiply charged ZINC</code> / <code>ZINC P slice</code></td><td>-P（+2以上）</td><td>17,775</td><td>濃度は最高（62倍）だが小さい。<strong>試運転向き</strong></td></tr>
-<tr><td><code>neutral ZINC</code> / <code>ZINC N slice</code> / <strong><code>ZINC</code>（既定）</strong></td><td>-N（中性）</td><td>1,000,000</td><td><strong>矛盾で停止する</strong>（下記）</td></tr>
+<tr><td><code>cationic ZINC</code> / <code>protonated ZINC</code> / <code>ZINC O slice</code> / <code>+1 ZINC</code></td><td><strong>-O（+1）</strong></td><td>636,669（全件）</td><td><strong>推奨。</strong>一級アミンが -N の 12倍</td></tr>
+<tr><td><code>ZINC +2 slice</code> / <code>dicationic ZINC</code> / <code>multiply charged ZINC</code> / <code>ZINC P slice</code></td><td>-P（+2以上）</td><td>17,775（全件）</td><td>濃度は最高（62倍）だが小さい。<strong>試運転向き</strong></td></tr>
+<tr><td><code>neutral ZINC</code> / <code>ZINC N slice</code> / <strong><code>ZINC</code>（既定）</strong></td><td>-N（中性）</td><td><strong>4,572,322 のうち 1,000,000 のみ取り込み済み</strong></td><td><strong>矛盾で停止する</strong>（下記）</td></tr>
 <tr><td><code>CHAMP</code></td><td>透過性</td><td>1,132</td><td></td></tr>
 <tr><td><code>IMI</code></td><td>活性</td><td>22,051</td><td></td></tr>
 <tr><td><code>GramNegAccum</code> / <code>GNA</code></td><td>透過性</td><td>197</td><td></td></tr>
-<tr><td><code>B3DB</code> / <code>blood-brain</code> / <code>BBB</code></td><td>血液脳関門</td><td>7,805</td><td><strong>screening はできない</strong>（別の障壁）</td></tr>
+<tr><td><code>B3DB</code> / <code>blood-brain</code> / <code>BBB</code></td><td>血液脳関門</td><td>7,805</td><td><strong>eNTRy 条件を付けると障壁不一致で停止</strong>（下記）</td></tr>
 </table>
+<p><strong>-N だけ打ち切りです。</strong>スライスは 4,572,322 件あり、このディスクには 1,000,000 件</p>
+<p>しかありません。画面も <code>1,000,000 of its 4,572,322 compounds read</code> と出ます（-O と</p>
+<p>-P は <code>636,669 compounds</code> のように全件）。**-N の結果はスライス全体についての結果では</p>
+<p>ありません。**</p>
+<h3>B3DB に eNTRy 条件を付けると止まる</h3>
+<p>血液脳関門のデータに外膜の条件を向けると、実行前に停止します。</p>
+<pre>
+about these conditions:
+  they are Richter et al., Nature 545:299 (2017), the eNTRy rules, and they
+    are about the Gram-negative outer membrane.
+  this library is about the blood-brain barrier.
+  they are not a general permeability rule, and not a rule about any other
+    barrier. In particular not the blood-brain barrier, where the positive
+    charge these conditions select for is not what the literature associates
+    with penetration
+
+stopping: the conditions asked for are a published rule about a different
+  barrier from the one this library measures. Pass --yes to run anyway, having
+  read why.
+</pre>
+<p><strong>B3DB について答えられること</strong>は別にあります。「自分の集合はこのデータの適用範囲に</p>
+<p>入っているか」「何件測れば入るか」は、条件を付けずに聞けば返ります。**screening の</p>
+<p>条件を向けるのが止まるだけ**です。</p>
 <h3><code>ZINC</code> と書くと <code>-N</code> になって止まる</h3>
 <p>eNTRy の第1条件（イオン化可能窒素）を要求しながら <code>-N</code> を読むと矛盾するので、</p>
 <p>実行前に停止する。Richter 2017 が<strong>中性 0/39、陰性 0/20、陽性 12/41</strong> と報告しているため。</p>
@@ -107,6 +175,9 @@ stopping: the library contradicts the published rule the request is built on.
 <p><strong>挿入語は許容する</strong>（2026-10-10 に修正）。<code>rotatable bonds must be at most 5</code>、</p>
 <p><code>the rotatable bonds should be no more than 5</code> も読める。比較子は語（<code>at most</code></p>
 <p><code>no more than</code> <code>under</code> <code>up to</code> <code>less than</code>）でも記号（<code>&lt;</code> <code>&lt;=</code> <code>≤</code> <code>=</code>）でもよい。</p>
+<p><strong><code>=</code> も「以下」と読みます。</strong><code>rotatable bonds = 7</code> は「ちょうど7」ではなく</p>
+<p><code>rotatable_le_7</code>、つまり<strong>7以下</strong>です。この道具に「ちょうどN」を要求する書き方は</p>
+<p>ありません。</p>
 <p>5 が published（eNTRy 第3条件）、7 と 9 は relaxation（閾値を動かしただけ）。</p>
 <p><strong>6 と書くと止まる。</strong>丸めない。</p>
 <h3>weight</h3>
@@ -115,7 +186,12 @@ stopping: the library contradicts the published rule the request is built on.
 <tr><td><code>molecular weight under 450</code> / <code>MW under 600</code></td><td><strong>450 / 600 のみ</strong></td></tr>
 </table>
 <p class='bullet'><code>mw_under_600</code> は <strong>published（二次経由：Richter 2017 が O&#x27;Shea &amp; Moser 2008 を逐語引用）</strong></p>
-<p class='bullet'><code>mw_under_450</code> は relaxation（本研究の選択）</p>
+<p class='bullet'><strong><code>mw_under_450</code> は本研究が選んだ値で、公表された根拠はありません</strong>（画面では</p>
+<p><code>chosen by this study; no published bound</code>）</p>
+<blockquote>registry はこれを <code>relaxation</code> に分類していますが、<strong>450 は 600 より厳しい</strong>ので</blockquote>
+<blockquote>「緩和」とは読まないでください。rotatable の 7・9 は本当に緩い方向への移動で、</blockquote>
+<blockquote>450 は「公表値が存在しない場所を自分で埋めた」という意味です。**同じ分類語が2つの</blockquote>
+<blockquote>意味を持っています。**画面は出典の文で書き分けています。</blockquote>
 <p><strong>挿入語は許容する。</strong><code>molecular weight is strictly under 450</code>、<code>MW must be under 600</code>、</p>
 <p><code>mol. wt. 450</code> も読める。</p>
 <p><strong>500 と書くと止まる。</strong></p>
@@ -288,6 +364,11 @@ n=  1200   262.03
 n=  1820   242.92  236.77
 n= 13946   248.06            ← 70倍読んで同じ時間
 </pre>
+<p><strong>これは暖機後の値だけです。</strong>各バッチの1点目はコールドスタートで遅く、除外した2点は</p>
+<p><code>n=200 273.14</code> と <code>n=1820 299.84</code>。除外した理由は、同じ 1,820 件が1点目で 299.84 秒、</p>
+<p>4点目で 242.92 秒になり、<strong>位置が件数より大きく効いていた</strong>からです。選別は妥当ですが、</p>
+<p>選別したと書かずに表だけ出すのは、この道具が禁じている形なので明記します。</p>
+<p><code>196.36</code> は2つ目のバッチの6点目（13,946件の測定の後）で、最も暖まった状態の値です。</p>
 <p>だから標本化しません。生存数が <strong>20,000件まで</strong>は全件測ります。それを超えると</p>
 <p>費用が未測定の領域に入るので、判定を保留して所要時間を添えます。<code>--full</code> を付け</p>
 <p>れば件数を問わず測ります。</p>
@@ -296,8 +377,10 @@ n= 13946   248.06            ← 70倍読んで同じ時間
   ...
       run it again with --full, which measures all N survivors
 </pre>
-<p>20,000 は測定範囲（13,946）の上端をスライス全体（17,775）が収まるまで延長した値で、</p>
-<p><strong>測定ではなく延長</strong>です。そう書いてあります。</p>
+<p><strong>20,000 の根拠：</strong>測定した範囲の上端は 13,946 件です。20,000 はそこを -P スライス</p>
+<p>全体（17,775）が収まるまで<strong>1.4倍に延長した値</strong>で、測定ではありません。それを超える</p>
+<p>領域の費用は測っていないので、「遅い」ではなく「未測定」として判定を保留します。</p>
+<p>床の <code>declared, not derived</code> と同じ扱いです。</p>
 <h2>8. 最小の例</h2>
 <pre>
 occam &quot;256 distinct scaffolds from the cationic ZINC library, \
