@@ -1,43 +1,97 @@
 {
   "request": {
-    "distinct_scaffolds_required": 256,
+    "distinct_scaffolds_required": 120,
     "specification_as_asked": {
       "nitrogen": "primary_amine",
       "rotatable": "rotatable_le_5",
       "weight": "mw_under_450"
     }
   },
-  "verdict": "the specification as asked cannot fill the request; a looser one can",
+  "verdict": "the specification as asked is feasible",
   "recommended": {
-    "specification": "primary_amine + rotatable_le_7 + mw_under_450",
+    "specification": "primary_amine + rotatable_le_5 + mw_under_450",
     "choices": {
       "nitrogen": "primary_amine",
-      "rotatable": "rotatable_le_7",
+      "rotatable": "rotatable_le_5",
       "weight": "mw_under_450"
     },
-    "survivors": 1200,
-    "scaffolds_estimated": 481,
+    "survivors": 430,
+    "scaffolds_estimated": 187,
     "state_by_sketch": "feasible",
-    "steps_from_baseline": 1,
-    "loosened": {
-      "rotatable": "rotatable_le_7"
-    },
+    "steps_from_baseline": 0,
+    "loosened": {},
     "provenance": {
       "per_knob": {
         "nitrogen": "published",
-        "rotatable": "relaxation",
+        "rotatable": "published",
         "weight": "relaxation"
       },
       "weakest": "relaxation"
     },
     "state": "feasible",
     "exact": {
-      "survivors": 1200,
-      "scaffolds_exact": 475,
-      "held_strings": 475
+      "survivors": 430,
+      "scaffolds_exact": 187,
+      "held_strings": 187
     }
   },
   "frontier": [
+    {
+      "specification": "primary_amine + rotatable_le_5 + mw_under_450",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_5",
+        "weight": "mw_under_450"
+      },
+      "survivors": 430,
+      "scaffolds_estimated": 187,
+      "state_by_sketch": "feasible",
+      "steps_from_baseline": 0,
+      "loosened": {},
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "published",
+          "weight": "relaxation"
+        },
+        "weakest": "relaxation"
+      },
+      "state": "feasible",
+      "exact": {
+        "survivors": 430,
+        "scaffolds_exact": 187,
+        "held_strings": 187
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_5 + mw_under_600",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_5",
+        "weight": "mw_under_600"
+      },
+      "survivors": 445,
+      "scaffolds_estimated": 195,
+      "state_by_sketch": "feasible",
+      "steps_from_baseline": 1,
+      "loosened": {
+        "weight": "mw_under_600"
+      },
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "published",
+          "weight": "published (secondary: verbatim quote in Richter et al. 2017; the 2008 paper was not read directly)"
+        },
+        "weakest": "published"
+      },
+      "state": "feasible",
+      "exact": {
+        "survivors": 445,
+        "scaffolds_exact": 194,
+        "held_strings": 194
+      }
+    },
     {
       "specification": "primary_amine + rotatable_le_7 + mw_under_450",
       "choices": {
@@ -65,6 +119,35 @@
         "survivors": 1200,
         "scaffolds_exact": 475,
         "held_strings": 475
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_5 + mw_unbounded",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_5",
+        "weight": "mw_unbounded"
+      },
+      "survivors": 445,
+      "scaffolds_estimated": 195,
+      "state_by_sketch": "feasible",
+      "steps_from_baseline": 2,
+      "loosened": {
+        "weight": "mw_unbounded"
+      },
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "published",
+          "weight": "published"
+        },
+        "weakest": "published"
+      },
+      "state": "feasible",
+      "exact": {
+        "survivors": 445,
+        "scaffolds_exact": 194,
+        "held_strings": 194
       }
     },
     {
@@ -185,51 +268,21 @@
         "scaffolds_exact": 714,
         "held_strings": 714
       }
-    },
-    {
-      "specification": "primary_amine + rotatable_le_9 + mw_unbounded",
-      "choices": {
-        "nitrogen": "primary_amine",
-        "rotatable": "rotatable_le_9",
-        "weight": "mw_unbounded"
-      },
-      "survivors": 1943,
-      "scaffolds_estimated": 714,
-      "state_by_sketch": "feasible",
-      "steps_from_baseline": 4,
-      "loosened": {
-        "rotatable": "rotatable_le_9",
-        "weight": "mw_unbounded"
-      },
-      "provenance": {
-        "per_knob": {
-          "nitrogen": "published",
-          "rotatable": "relaxation",
-          "weight": "published"
-        },
-        "weakest": "relaxation"
-      },
-      "state": "feasible",
-      "exact": {
-        "survivors": 1943,
-        "scaffolds_exact": 714,
-        "held_strings": 714
-      }
     }
   ],
-  "infeasible_count": 3,
+  "infeasible_count": 0,
   "counted_exactly": [
     "primary_amine + rotatable_le_9 + mw_under_600",
-    "primary_amine + rotatable_le_9 + mw_unbounded",
     "primary_amine + rotatable_le_9 + mw_under_450",
     "primary_amine + rotatable_le_7 + mw_under_600",
     "primary_amine + rotatable_le_7 + mw_unbounded",
-    "primary_amine + rotatable_le_7 + mw_under_450"
-  ],
-  "counted_by_sketch_only": [
+    "primary_amine + rotatable_le_7 + mw_under_450",
     "primary_amine + rotatable_le_5 + mw_under_600",
     "primary_amine + rotatable_le_5 + mw_unbounded",
     "primary_amine + rotatable_le_5 + mw_under_450"
+  ],
+  "counted_by_sketch_only": [
+    "primary_amine + rotatable_le_9 + mw_unbounded"
   ],
   "held_back": [],
   "held_back_why": "the sketch could not place these against the requirement: their estimate is inside three standard errors of it. That is where the closest candidates are, so they are named rather than dropped. An exact second pass decides them, which needs the library",
@@ -321,27 +374,6 @@
     "then the specification closest to what was asked. The tie-break used to be the largest survivor count, which prefers the largest overshoot: 686 distinct scaffolds were offered against a request for 500, and the two steps between them were never weighed. The specification said here to reach about 520 was counted exactly afterwards at 494, six short of the request, so it was not an alternative that had been missed -- that figure is withdrawn. It is reported as the nearest miss instead",
     "the step granularity is a human choice, so the frontier is returned and the ranking is a suggestion"
   ],
-  "sketch_role": "coarse filter only; variants near the requirement were counted exactly in a second pass",
-  "as_asked": {
-    "specification": "primary_amine + rotatable_le_5 + mw_under_450",
-    "choices": {
-      "nitrogen": "primary_amine",
-      "rotatable": "rotatable_le_5",
-      "weight": "mw_under_450"
-    },
-    "survivors": 430,
-    "scaffolds_estimated": 187,
-    "state_by_sketch": "infeasible",
-    "steps_from_baseline": 0,
-    "loosened": {},
-    "provenance": {
-      "per_knob": {
-        "nitrogen": "published",
-        "rotatable": "published",
-        "weight": "relaxation"
-      },
-      "weakest": "relaxation"
-    },
-    "state": "infeasible"
-  }
+  "compared": 9,
+  "sketch_role": "coarse filter only; variants near the requirement were counted exactly in a second pass"
 }

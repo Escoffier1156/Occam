@@ -1,41 +1,41 @@
 {
-  "survivors": 430,
+  "survivors": 1200,
   "sample_size": 1200,
   "sample_seed": 0,
   "rankability": {
     "verdict": "not_answerable",
-    "sampled": 430,
-    "of_survivors": 430,
+    "sampled": 1200,
+    "of_survivors": 1200,
     "measured_every_survivor": true,
-    "distinct_share": 0.486,
-    "tie_share": 0.514,
-    "most_common_value": -2.369748,
+    "distinct_share": 0.4683,
+    "tie_share": 0.5317,
+    "most_common_value": 1.416785,
     "most_common_count": 4,
     "floor_distinct": 0.5,
     "floor_basis": "declared, not derived: no published source states a distinct-share floor. The reasoning is that at half the scores duplicated, half of any top N is placed by the tie-break rather than by the model, which argues for a floor near the middle of the range and does not single out this value over 0.45 or 0.55. Read a verdict near the floor as near a convention",
     "ceiling_single_value": 0.05,
     "logit_range": [
-      -4.66,
-      2.7336
+      -5.2297,
+      2.9926
     ],
     "fitted_on": "/home/shogo/occam/data/work/imi_fp/features.parquet",
     "not_comparable": "this share moves with the number measured, so it does not compare with another specification's unless both were measured on the same count",
-    "means": "the model cannot order this set: 48.6% of scores are distinct against a 50% floor declared before the run, measured on 430 molecules. A top N drawn from it would be settled by the tie-break, not by the model.",
+    "means": "the model cannot order this set: 46.8% of scores are distinct against a 50% floor declared before the run, measured on 1,200 molecules. A top N drawn from it would be settled by the tie-break, not by the model.",
     "means_lines": [
-      "the model cannot order this set: 48.6% of scores are distinct against a 50% floor declared before the run, measured on 430 molecules. A top N drawn from it would be settled by the tie-break, not by the model."
+      "the model cannot order this set: 46.8% of scores are distinct against a 50% floor declared before the run, measured on 1,200 molecules. A top N drawn from it would be settled by the tie-break, not by the model."
     ]
   },
   "applicability": {
     "verdict": "answerable_but_extrapolating",
-    "sampled": 430,
-    "of_survivors": 430,
+    "sampled": 1200,
+    "of_survivors": 1200,
     "training_structures": 22051,
     "nearest_tanimoto": {
-      "median": 0.211,
-      "max": 0.337,
+      "median": 0.214,
+      "max": 0.457,
       "min": 0.149
     },
-    "share_at_or_above": 0.0,
+    "share_at_or_above": 0.0008,
     "threshold": 0.4,
     "threshold_source": "nearest-neighbour Tanimoto cut-offs of 0.4 to 0.6 are common applicability-domain practice; 0.4 is the lenient end of that band",
     "control": {
@@ -50,7 +50,7 @@
       "verdict": "pass",
       "what_it_rules_out": "a fingerprint radius or bit-length mismatch, or salts and stereochemistry left on one side. Any of those would depress the control too."
     },
-    "means": "100.0% of this set sits outside the structures the model was fitted on, and none of it is inside (median 0.211, max 0.337 against a 0.4 threshold). An order can be produced; its meaning is not established."
+    "means": "99.9% of this set sits outside the structures the model was fitted on, while 0.1% reaches the threshold (median 0.214, max 0.457 against a 0.4 threshold). An order can be produced; its meaning is not established."
   },
   "activity_model": {
     "known": true,
@@ -72,8 +72,8 @@
           "training_set": "IMI-COMBINE",
           "measures": "activity",
           "structures": 22051,
-          "median_nearest": 0.211,
-          "max_nearest": 0.337,
+          "median_nearest": 0.215,
+          "max_nearest": 0.355,
           "inside_threshold": 0.0,
           "tied_with": [
             "B3DB"
@@ -84,16 +84,18 @@
           "training_set": "B3DB",
           "measures": "blood-brain barrier",
           "structures": 7805,
-          "median_nearest": 0.211,
-          "max_nearest": 0.577,
-          "inside_threshold": 0.0167
+          "caveat": "upstream version before v1.0.0: 7,807 rows against the 7,982 the repository holds today",
+          "median_nearest": 0.215,
+          "max_nearest": 0.629,
+          "inside_threshold": 0.02
         },
         {
           "training_set": "CHAMP",
           "measures": "permeability",
           "structures": 1132,
-          "median_nearest": 0.177,
-          "max_nearest": 0.33,
+          "caveat": "no primary amine in 1,132 rows (measured 2026-10-14). A specification requiring one has no near neighbour here by construction, which is why the nearest-set comparison puts it far",
+          "median_nearest": 0.179,
+          "max_nearest": 0.354,
           "inside_threshold": 0.0
         },
         {
@@ -101,14 +103,14 @@
           "measures": "permeability",
           "structures": 197,
           "median_nearest": 0.144,
-          "max_nearest": 0.221,
+          "max_nearest": 0.231,
           "inside_threshold": 0.0
         }
       ],
       "what_this_means": "the training set listed first is the one this library is actually nearest to. If none reaches the threshold, no model fitted on what is here can speak about this library, and the revision is data rather than a setting."
     },
     "ranking": {
-      "problem": "only 48.6% of scores are distinct against a 50% floor",
+      "problem": "only 46.8% of scores are distinct against a 50% floor",
       "measured_alternatives": "a looser specification spreads the scores further, so one of the alternatives on the frontier may clear the floor. Which of them does is measurable and has not been measured here",
       "what_this_means": "the set can still be screened; what cannot be done is to take the top N from it, because the tie-break rather than the model would choose them"
     }

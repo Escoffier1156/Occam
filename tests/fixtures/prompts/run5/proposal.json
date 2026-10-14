@@ -321,6 +321,7 @@
     "then the specification closest to what was asked. The tie-break used to be the largest survivor count, which prefers the largest overshoot: 686 distinct scaffolds were offered against a request for 500, and the two steps between them were never weighed. The specification said here to reach about 520 was counted exactly afterwards at 494, six short of the request, so it was not an alternative that had been missed -- that figure is withdrawn. It is reported as the nearest miss instead",
     "the step granularity is a human choice, so the frontier is returned and the ranking is a suggestion"
   ],
+  "compared": 9,
   "sketch_role": "coarse filter only; variants near the requirement were counted exactly in a second pass",
   "as_asked": {
     "specification": "primary_amine + rotatable_le_5 + mw_under_450",

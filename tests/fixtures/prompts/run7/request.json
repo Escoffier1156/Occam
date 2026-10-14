@@ -1,0 +1,28 @@
+{
+  "goal": "120 distinct scaffolds from the CHAMP library, primary amine strictly required, rotatable bonds at most 5, molecular weight under 450.",
+  "library": "data/work/champ.parquet",
+  "deliverable": {
+    "distinct_scaffolds": 120
+  },
+  "requirements": [
+    {
+      "knob": "nitrogen",
+      "setting": "primary_amine",
+      "strict": true
+    },
+    {
+      "knob": "rotatable",
+      "setting": "rotatable_le_5",
+      "strict": false
+    },
+    {
+      "knob": "weight",
+      "setting": "mw_under_450",
+      "strict": false
+    }
+  ],
+  "library_matched": {
+    "phrase": "champ",
+    "pattern": "\\bchamp"
+  }
+}

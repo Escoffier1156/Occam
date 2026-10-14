@@ -1,0 +1,237 @@
+{
+  "baseline": {
+    "nitrogen": "primary_amine",
+    "rotatable": "rotatable_le_5",
+    "weight": "mw_under_450"
+  },
+  "summary": {
+    "library": "data/work/champ.parquet",
+    "limit": null,
+    "evaluated": 1132,
+    "unreadable": 0,
+    "variants": 9,
+    "seconds": 1.1,
+    "passes_over_the_library": 1,
+    "passes_if_run_separately": 9,
+    "state_bytes_total": 37368,
+    "state_bytes_per_variant": 4152,
+    "state_depends_on_rows": false,
+    "exact_distinct_scaffolds": null
+  },
+  "specifications": [
+    {
+      "specification": "primary_amine + rotatable_le_5 + mw_under_450",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_5",
+        "weight": "mw_under_450"
+      },
+      "survivors": 0,
+      "share": 0.0,
+      "distinct_scaffolds_estimated": 0,
+      "mw_mean": 0.0,
+      "mw_sd": 0.0,
+      "rotatable_mean": 0.0,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "published",
+          "weight": "relaxation"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_5 + mw_under_600",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_5",
+        "weight": "mw_under_600"
+      },
+      "survivors": 0,
+      "share": 0.0,
+      "distinct_scaffolds_estimated": 0,
+      "mw_mean": 0.0,
+      "mw_sd": 0.0,
+      "rotatable_mean": 0.0,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "published",
+          "weight": "published (secondary: verbatim quote in Richter et al. 2017; the 2008 paper was not read directly)"
+        },
+        "weakest": "published"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_5 + mw_unbounded",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_5",
+        "weight": "mw_unbounded"
+      },
+      "survivors": 0,
+      "share": 0.0,
+      "distinct_scaffolds_estimated": 0,
+      "mw_mean": 0.0,
+      "mw_sd": 0.0,
+      "rotatable_mean": 0.0,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "published",
+          "weight": "published"
+        },
+        "weakest": "published"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_7 + mw_under_450",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_7",
+        "weight": "mw_under_450"
+      },
+      "survivors": 0,
+      "share": 0.0,
+      "distinct_scaffolds_estimated": 0,
+      "mw_mean": 0.0,
+      "mw_sd": 0.0,
+      "rotatable_mean": 0.0,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "relaxation"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_7 + mw_under_600",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_7",
+        "weight": "mw_under_600"
+      },
+      "survivors": 0,
+      "share": 0.0,
+      "distinct_scaffolds_estimated": 0,
+      "mw_mean": 0.0,
+      "mw_sd": 0.0,
+      "rotatable_mean": 0.0,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published (secondary: verbatim quote in Richter et al. 2017; the 2008 paper was not read directly)"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_7 + mw_unbounded",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_7",
+        "weight": "mw_unbounded"
+      },
+      "survivors": 0,
+      "share": 0.0,
+      "distinct_scaffolds_estimated": 0,
+      "mw_mean": 0.0,
+      "mw_sd": 0.0,
+      "rotatable_mean": 0.0,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_9 + mw_under_450",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_under_450"
+      },
+      "survivors": 0,
+      "share": 0.0,
+      "distinct_scaffolds_estimated": 0,
+      "mw_mean": 0.0,
+      "mw_sd": 0.0,
+      "rotatable_mean": 0.0,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "relaxation"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_9 + mw_under_600",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_under_600"
+      },
+      "survivors": 0,
+      "share": 0.0,
+      "distinct_scaffolds_estimated": 0,
+      "mw_mean": 0.0,
+      "mw_sd": 0.0,
+      "rotatable_mean": 0.0,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published (secondary: verbatim quote in Richter et al. 2017; the 2008 paper was not read directly)"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_9 + mw_unbounded",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_unbounded"
+      },
+      "survivors": 0,
+      "share": 0.0,
+      "distinct_scaffolds_estimated": 0,
+      "mw_mean": 0.0,
+      "mw_sd": 0.0,
+      "rotatable_mean": 0.0,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published"
+        },
+        "weakest": "relaxation"
+      }
+    }
+  ],
+  "inert_knobs": [
+    {
+      "knob": "rotatable",
+      "comparisons": 3,
+      "all_identical": true,
+      "what": "every pair of specifications differing only in rotatable gave the same survivor count, in all 3 comparisons. On this library this knob filters nothing.",
+      "what_to_do": "do not report it as a constraint that was applied; find out why it is inert before relying on it"
+    },
+    {
+      "knob": "weight",
+      "comparisons": 3,
+      "all_identical": true,
+      "what": "every pair of specifications differing only in weight gave the same survivor count, in all 3 comparisons. On this library this knob filters nothing.",
+      "what_to_do": "do not report it as a constraint that was applied; find out why it is inert before relying on it"
+    }
+  ]
+}

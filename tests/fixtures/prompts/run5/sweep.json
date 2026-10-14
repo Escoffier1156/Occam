@@ -1,0 +1,222 @@
+{
+  "baseline": {
+    "nitrogen": "primary_amine",
+    "rotatable": "rotatable_le_5",
+    "weight": "mw_under_450"
+  },
+  "summary": {
+    "library": "data/work/zinc_P",
+    "limit": null,
+    "evaluated": 17775,
+    "unreadable": 0,
+    "variants": 9,
+    "seconds": 15.2,
+    "passes_over_the_library": 1,
+    "passes_if_run_separately": 9,
+    "state_bytes_total": 37368,
+    "state_bytes_per_variant": 4152,
+    "state_depends_on_rows": false,
+    "exact_distinct_scaffolds": null
+  },
+  "specifications": [
+    {
+      "specification": "primary_amine + rotatable_le_9 + mw_under_600",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_under_600"
+      },
+      "survivors": 1943,
+      "share": 0.10931082981715894,
+      "distinct_scaffolds_estimated": 714,
+      "mw_mean": 405.6,
+      "mw_sd": 19.7,
+      "rotatable_mean": 6.72,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published (secondary: verbatim quote in Richter et al. 2017; the 2008 paper was not read directly)"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_9 + mw_unbounded",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_unbounded"
+      },
+      "survivors": 1943,
+      "share": 0.10931082981715894,
+      "distinct_scaffolds_estimated": 714,
+      "mw_mean": 405.6,
+      "mw_sd": 19.7,
+      "rotatable_mean": 6.72,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_9 + mw_under_450",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_9",
+        "weight": "mw_under_450"
+      },
+      "survivors": 1820,
+      "share": 0.10239099859353024,
+      "distinct_scaffolds_estimated": 686,
+      "mw_mean": 401.1,
+      "mw_sd": 8.9,
+      "rotatable_mean": 6.71,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "relaxation"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_7 + mw_under_600",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_7",
+        "weight": "mw_under_600"
+      },
+      "survivors": 1292,
+      "share": 0.07268635724331927,
+      "distinct_scaffolds_estimated": 499,
+      "mw_mean": 406.0,
+      "mw_sd": 20.8,
+      "rotatable_mean": 5.83,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published (secondary: verbatim quote in Richter et al. 2017; the 2008 paper was not read directly)"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_7 + mw_unbounded",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_7",
+        "weight": "mw_unbounded"
+      },
+      "survivors": 1292,
+      "share": 0.07268635724331927,
+      "distinct_scaffolds_estimated": 499,
+      "mw_mean": 406.0,
+      "mw_sd": 20.8,
+      "rotatable_mean": 5.83,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "published"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_7 + mw_under_450",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_7",
+        "weight": "mw_under_450"
+      },
+      "survivors": 1200,
+      "share": 0.06751054852320675,
+      "distinct_scaffolds_estimated": 481,
+      "mw_mean": 401.0,
+      "mw_sd": 9.1,
+      "rotatable_mean": 5.79,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "relaxation",
+          "weight": "relaxation"
+        },
+        "weakest": "relaxation"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_5 + mw_under_600",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_5",
+        "weight": "mw_under_600"
+      },
+      "survivors": 445,
+      "share": 0.025035161744022504,
+      "distinct_scaffolds_estimated": 195,
+      "mw_mean": 401.7,
+      "mw_sd": 17.5,
+      "rotatable_mean": 4.51,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "published",
+          "weight": "published (secondary: verbatim quote in Richter et al. 2017; the 2008 paper was not read directly)"
+        },
+        "weakest": "published"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_5 + mw_unbounded",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_5",
+        "weight": "mw_unbounded"
+      },
+      "survivors": 445,
+      "share": 0.025035161744022504,
+      "distinct_scaffolds_estimated": 195,
+      "mw_mean": 401.7,
+      "mw_sd": 17.5,
+      "rotatable_mean": 4.51,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "published",
+          "weight": "published"
+        },
+        "weakest": "published"
+      }
+    },
+    {
+      "specification": "primary_amine + rotatable_le_5 + mw_under_450",
+      "choices": {
+        "nitrogen": "primary_amine",
+        "rotatable": "rotatable_le_5",
+        "weight": "mw_under_450"
+      },
+      "survivors": 430,
+      "share": 0.02419127988748242,
+      "distinct_scaffolds_estimated": 187,
+      "mw_mean": 399.1,
+      "mw_sd": 9.4,
+      "rotatable_mean": 4.49,
+      "provenance": {
+        "per_knob": {
+          "nitrogen": "published",
+          "rotatable": "published",
+          "weight": "relaxation"
+        },
+        "weakest": "relaxation"
+      }
+    }
+  ],
+  "inert_knobs": []
+}

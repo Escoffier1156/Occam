@@ -84,6 +84,7 @@
           "training_set": "B3DB",
           "measures": "blood-brain barrier",
           "structures": 7805,
+          "caveat": "upstream version before v1.0.0: 7,807 rows against the 7,982 the repository holds today",
           "median_nearest": 0.215,
           "max_nearest": 0.629,
           "inside_threshold": 0.02
@@ -92,6 +93,7 @@
           "training_set": "CHAMP",
           "measures": "permeability",
           "structures": 1132,
+          "caveat": "no primary amine in 1,132 rows (measured 2026-10-14). A specification requiring one has no near neighbour here by construction, which is why the nearest-set comparison puts it far",
           "median_nearest": 0.179,
           "max_nearest": 0.354,
           "inside_threshold": 0.0
