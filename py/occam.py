@@ -516,7 +516,7 @@ def stop(reason):
     return 1
 
 
-def show(spec, notes, library_info=None):
+def show(spec, notes, library_info=None, declared_phrase=None):
     """The request said back to the reader, in the words of the chemistry.
 
     The identifiers the registry uses are not printed here. They are in
@@ -535,7 +535,8 @@ def show(spec, notes, library_info=None):
           f"{datetime.datetime.now().astimezone().isoformat(timespec='seconds')}")
     print("read as:")
     library = (render_mod.library_phrase(library_info) if library_info
-               else (spec["library"] or "(not named)"))
+               else declared_phrase
+               or (spec["library"] or "(not named)"))
     print(f"  {'library':{width}} {library}")
     for key, value in spec["deliverable"].items():
         print(f"  {'deliverable':{width}} {value:,} {key.replace('_', ' ')}")
@@ -718,7 +719,13 @@ def main():
     library_check = provenance_mod.report(spec["library"], spec["requirements"]) \
         if is_zinc else None
 
-    show(spec, notes, library_check["library"] if library_check else None)
+    # A library that is not a ZINC slice is named by its own manifest. Without
+    # this the screen printed `data/work/champ.parquet`, which is the record's
+    # spelling reaching the reader.
+    declared_phrase = (None if is_zinc else render_mod.declared_library_phrase(
+        spec.get("library"), inventory_mod.declared()))
+    show(spec, notes, library_check["library"] if library_check else None,
+         declared_phrase)
     (args.out_dir / "request.json").write_text(json.dumps(spec, indent=2) + "\n")
 
     target_checks = check_targets(spec)
@@ -920,7 +927,12 @@ def main():
           f"the library")
     print(f"  {held} requirement(s) held as asked, the rest varied")
 
-    summary = sweep_mod.run(spec["library"], variants, args.limit or None)
+    # An empty population is a stop, not a verdict. sweep.run() raises rather
+    # than returning counts of nothing; here it becomes a sentence.
+    try:
+        summary = sweep_mod.run(spec["library"], variants, args.limit or None)
+    except ValueError as error:
+        return stop(str(error))
     rows = [v.report(summary["evaluated"]) for v in variants]
     rows.sort(key=lambda r: -r["survivors"])
     sweep_report = {"baseline": baseline, "summary": summary, "specifications": rows}
@@ -989,6 +1001,44 @@ def main():
         for item in result["what_would_unblock"]:
             for line in render_mod.wrap(item, indent=2, hanging=4):
                 print(line)
+
+    # WHEN NOTHING SURVIVES, SAY WHICH CONDITION REMOVED IT
+    #
+    # "no setting of these knobs can fill the request" with a ceiling of 0 is
+    # true and tells a reader nothing they can act on. The sweep cannot name
+    # the cause, because a condition held as asked is never varied and so
+    # never shows up as a difference. One more pass measures each condition
+    # alone, and it is spent only here -- there is no answer competing for it.
+    survivors = (result.get("best_reachable") or {}).get("survivors")
+    if result.get("best_reachable") and not survivors:
+        alone = sweep_mod.eliminating_conditions(
+            spec["library"], result["best_reachable"]["choices"],
+            args.limit or None)
+        print("\nwhich condition removed everything:")
+        for row in alone["alone"]:
+            share = (f"{row['share']:.1%}" if row["share"] is not None
+                     else "not measured")
+            mark = "  <- removes everything on its own" if not row["keeps"] else ""
+            print(f"  {render_mod.prop(row['knob']):<20} "
+                  f"{render_mod.reads(row['knob'], row['setting']):<34} "
+                  f"keeps {row['keeps']:,} of {alone['read']:,} ({share}){mark}")
+        for line in render_mod.wrap(alone["measured"], indent=2, hanging=4):
+            print(line)
+        blocking = [r for r in alone["alone"] if not r["keeps"]]
+        if blocking:
+            held = {r["knob"] for r in spec["requirements"] if "knob" in r
+                    and r.get("strict")}
+            for row in blocking:
+                note = (f"it was held as asked, so no looser setting of it was "
+                        f"compared. Dropping the mark on it is what would let "
+                        f"the sweep try one"
+                        if row["knob"] in held else
+                        f"every registered setting of it was compared and the "
+                        f"library still has nothing")
+                for line in render_mod.wrap(
+                        f"{render_mod.prop(row['knob'])}: {note}",
+                        indent=4, hanging=6):
+                    print(line)
     # What a screen of this specification would and would not establish. These
     # used to be gates inside the candidate pipeline, where they were reached
     # only after a list of molecules had been produced. They are verdicts.
@@ -1040,8 +1090,9 @@ def main():
 
     for line in render_mod.answer(
             spec, result, body=screen_body, cost=screen_cost,
-            library=render_mod.library_phrase(library_check["library"])
-            if library_check else spec.get("library")):
+            library=(render_mod.library_phrase(library_check["library"])
+                     if library_check
+                     else declared_phrase or spec.get("library"))):
         print(line)
 
     written = ["request.json", "sweep.json", "proposal.json"]

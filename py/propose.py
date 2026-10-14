@@ -397,6 +397,10 @@ def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
             "the step granularity is a human choice, so the frontier is "
             "returned and the ranking is a suggestion",
         ],
+        # How many specifications there were to choose between. One is not a
+        # choice, and the answer block says so rather than writing "the most
+        # any of them reaches" about a set of size one.
+        "compared": len(rows),
         "sketch_role": "coarse filter only; variants near the requirement were "
                        "counted exactly in a second pass",
     }

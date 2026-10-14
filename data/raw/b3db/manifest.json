@@ -80,11 +80,14 @@
   },
   "why_this_manifest_exists_now": "The two B3DB files sat in data/raw/ with no manifest while six other datasets had one, so their source and licence were recorded nowhere. It surfaced during an inventory of what could be handed to a third party: a file whose terms are unknown cannot be shipped, and a file whose terms are CC0 can. Writing it also fixed the version question, which nobody had asked.",
   "evidence": {
-    "in_inventory": true,
-    "artefacts": [
-      "data/work/B3DB_classification.parquet"
-    ],
-    "why": "the categorical BBB+/BBB- set, which is what the nearest-set comparison reads. The regression file is not evidence for any question this tool answers and the descriptor and feature derivatives are the same rows again.",
-    "caveat": "upstream version before v1.0.0: 7,807 rows against the 7,982 the repository holds today"
-  }
+  "in_inventory": true,
+  "artefacts": [
+    "data/work/B3DB_classification.parquet"
+  ],
+  "why": "the categorical BBB+/BBB- set, which is what the nearest-set comparison reads. The regression file is not evidence for any question this tool answers and the descriptor and feature derivatives are the same rows again.",
+  "caveat": "upstream version before v1.0.0: 7,807 rows against the 7,982 the repository holds today",
+  "display": "B3DB",
+  "measures": "blood-brain barrier",
+  "rows": 7807
+}
 }

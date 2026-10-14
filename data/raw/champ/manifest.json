@@ -79,8 +79,21 @@
   ],
   "attribution_required": "CHAMP dataset, Zenodo record 17434251, DOI 10.5281/zenodo.17434251, CC BY 4.0",
   "evidence": {
-    "in_inventory": true,
-    "artefacts": ["data/work/champ.parquet"],
-    "why": "accumulation in E. coli, the measured set this project's conditions are about."
+  "in_inventory": true,
+  "artefacts": [
+    "data/work/champ.parquet"
+  ],
+  "why": "accumulation in E. coli, the measured set this project's conditions are about.",
+  "display": "CHAMP",
+  "measures": "accumulation in E. coli",
+  "rows": 1132,
+  "caveat": "no primary amine in 1,132 rows (measured 2026-10-14). A specification requiring one has no near neighbour here by construction, which is why the nearest-set comparison puts it far",
+  "nitrogen_counts_measured": {
+    "primary_amine": 0,
+    "primary_or_secondary_amine": 20,
+    "basic_nitrogen": 84,
+    "rows": 1132,
+    "control": "the same detector finds 71 of 197 in GramNegAccum (36.0%), 2,756 of 22,051 in IMI-COMBINE (12.5%) and 2,322 of 17,775 in the ZINC -P slice (13.1%), so the zero is the data and not the test"
   }
+}
 }

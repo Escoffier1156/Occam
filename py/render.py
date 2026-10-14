@@ -249,6 +249,38 @@ def ranking_answer(asked, rank_verdict):
                 indent=2, hanging=4)
 
 
+def declared_library_phrase(path, declarations):
+    """A library that is not a ZINC slice, named as its manifest names it.
+
+    library_phrase() reads provenance.identify(), which only knows the ZINC
+    tranches. The other four libraries the request vocabulary names -- CHAMP,
+    IMI, GramNegAccum, B3DB -- fell through to the raw path, so the screen
+    printed `data/work/champ.parquet`: a record shape, which is the one thing
+    this module exists to keep off it.
+
+    The manifests already carry the name and the row count, and the inventory
+    already reads them. Returns None when nothing declares this path, because
+    an unidentified library is a fact worth leaving visible rather than
+    papering over.
+    """
+    for entry in declarations or []:
+        if path not in (entry.get("artefacts") or []):
+            continue
+        name = entry.get("display") or entry.get("dataset")
+        rows = entry.get("rows")
+        measures = entry.get("measures")
+        parts = [str(name)]
+        if measures:
+            parts.append(f"({measures}{f', {rows:,}' if rows else ''})")
+        elif rows:
+            parts.append(f"({rows:,} compounds)")
+        phrase = " ".join(parts)
+        if entry.get("caveat"):
+            phrase += f" - {entry['caveat']}"
+        return phrase
+    return None
+
+
 def barrier_sentence(library, barrier):
     """Which barrier the library is about, as one of three statements.
 
@@ -397,8 +429,15 @@ def answer(spec, result, body=None, cost=None, library=None):
             required = result.get("request", {}).get(
                 "distinct_scaffolds_required")
             against = (f" against {required:,} required" if required else "")
-            out += wrap(f"the most any of them reaches is "
-                        f"{scaffold_phrase(best)}{against}",
+            # "any of them" is plural and implies there were options. When
+            # every requirement is strict there is exactly one specification
+            # to compare, and saying it reached the most of several is a
+            # choice the reader never had.
+            compared = result.get("compared")
+            lead = ("the most any of them reaches is"
+                    if compared is None or compared > 1
+                    else "the one specification compared reaches")
+            out += wrap(f"{lead} {scaffold_phrase(best)}{against}",
                         indent=4, hanging=6)
     # Six short of what was asked, two steps tighter: the one line that says
     # whether to widen the library or lower the request. It belongs beside the

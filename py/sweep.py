@@ -190,11 +190,45 @@ def enumerate_variants(baseline, only_looser=True):
     return out
 
 
+def library_parts(part_dir):
+    """The parquet files a library is held in, in order.
+
+    TWO SHAPES, AND ONLY ONE WAS READ
+    --------------------------------------------------------------------
+    This globbed `part-*.parquet` inside a directory, which is how the ZINC
+    slices are written. The other four libraries the request vocabulary names
+    -- CHAMP, IMI, GramNegAccum, B3DB -- are single parquet files, and
+    globbing inside a FILE path matches nothing and raises nothing. A request
+    for CHAMP read zero molecules, finished normally, and reported that no
+    setting of any knob could fill it.
+
+    The glob returning nothing is not the same as a library being empty, and
+    neither of them is an answer. run() refuses to produce a verdict from
+    either; this function's job is only to say which files to read.
+    """
+    path = Path(part_dir)
+    if path.is_file():
+        return [path]
+    return sorted(path.glob("part-*.parquet"))
+
+
+def smiles_column(path):
+    """Whichever spelling this file uses. B3DB writes SMILES, the rest smiles."""
+    names = pq.read_schema(path).names
+    for candidate in ("smiles", "SMILES"):
+        if candidate in names:
+            return candidate
+    raise ValueError(
+        f"{path} has no SMILES column; its columns are {names}. A library "
+        f"this cannot read is a library this cannot screen.")
+
+
 def iter_library(part_dir, limit=None):
     seen = 0
-    for path in sorted(Path(part_dir).glob("part-*.parquet")):
-        table = pq.read_table(path, columns=["smiles"])
-        values = table.column("smiles").to_pylist()
+    for path in library_parts(part_dir):
+        column = smiles_column(path)
+        table = pq.read_table(path, columns=[column])
+        values = table.column(0).to_pylist()
         del table
         for text in values:
             yield text
@@ -240,6 +274,31 @@ def run(part_dir, variants, limit=None, exact_check=False):
             variant.consider(mol, weight, rotatable, scaffold_of, hits)
         if exact is not None and holder:
             exact.add(holder[0])
+
+    # A SWEEP THAT READ NOTHING HAS NOT MEASURED ANYTHING
+    #
+    # Zero molecules produced a full set of verdicts: "no setting of these
+    # knobs can fill the request", "the best reachable is 0 distinct
+    # scaffolds", and -- worst -- two knobs reported as having "filtered
+    # nothing on this library, in all 3 comparisons", which is a claim to have
+    # compared something. Every pair of empty counts is equal, so the check
+    # that exists to stop a knob being reported as a constraint it never
+    # applied became a claim that measurements were taken.
+    #
+    # The whole product is the difference between "the answer is no" and "this
+    # cannot be answered". An empty population supports neither. It stops
+    # here, where the population is known, rather than at any of the places
+    # downstream that would each have to remember to ask.
+    if evaluated == 0:
+        parts = library_parts(part_dir)
+        raise ValueError(
+            f"read 0 molecules from {part_dir}: "
+            + (f"no parquet file was found there"
+               if not parts else
+               f"{len(parts)} file(s) were read and held no rows")
+            + ". A verdict needs a population to be about; this one would be "
+              "about nothing, and would say so in the same words it uses for "
+              "a library that was read and did not reach.")
 
     seconds = time.monotonic() - started
     state = (8 + variants[0].scaffolds.nbytes() + 48) * len(variants) if variants else 0
@@ -314,3 +373,56 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def eliminating_conditions(part_dir, choices, limit=None):
+    """When nothing survives, which condition removed everything?
+
+    WHY THIS EXISTS, AND WHY IT RUNS ONLY ON A ZERO
+    --------------------------------------------------------------------
+    inert_knobs() says which conditions filtered NOTHING, so a reader is not
+    told a constraint was applied when it did nothing. Its opposite was never
+    said. A request for CHAMP with a strict primary amine returned "no setting
+    of these knobs can fill the request" and "the best reachable is 0" -- true,
+    and silent about the fact that the library holds no primary amine at all
+    while the weight and flexibility bounds removed four molecules out of
+    1,132.
+
+    The sweep cannot answer this on its own: a condition held as asked is
+    never varied, so its effect never appears as a difference between two
+    specifications. Measuring it needs each condition applied ALONE, which is
+    one more pass over the library. That is why this runs only when the sweep
+    has already returned zero everywhere -- at that point one extra pass buys
+    the only thing a reader wants, and there is no answer to spend it on.
+
+    Returns one row per condition with how many molecules it keeps by itself,
+    in the order the registry lists them.
+    """
+    import knobs as knobs_mod
+
+    variant = Variant(choices)
+    nitrogen = {s["name"]: s for s in knobs_mod.settings_of("nitrogen")}
+    counts = {"nitrogen": 0, "rotatable": 0, "weight": 0}
+    read = 0
+    for text in iter_library(part_dir, limit):
+        mol = smiles_mod.parse(text)
+        if mol is None:
+            continue
+        read += 1
+        if nitrogen[choices["nitrogen"]]["test"](mol):
+            counts["nitrogen"] += 1
+        if rdMolDescriptors.CalcNumRotatableBonds(mol) <= variant.rot_limit:
+            counts["rotatable"] += 1
+        if Descriptors.MolWt(mol) < variant.mw_limit:
+            counts["weight"] += 1
+    return {
+        "read": read,
+        "alone": [{"knob": knob,
+                   "setting": choices[knob],
+                   "keeps": counts[knob],
+                   "share": round(counts[knob] / read, 4) if read else None}
+                  for knob in knobs_mod.ORDER if knob in counts],
+        "measured": "each condition applied by itself, over one pass of the "
+                    "library. A condition keeping 0 on its own removes "
+                    "everything whatever the others do.",
+    }
