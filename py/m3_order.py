@@ -80,6 +80,28 @@ def write_parts(table, features, split_of_row, out_dir):
     One part holds one row group: a parquet footer grows with the row group
     count, which would make the engine's memory depend on the data volume, so
     the engine refuses a file holding more than one.
+
+    WHY THE ROWS ARE NEVER TURNED INTO PYTHON
+    --------------------------------------------------------------------
+    This used to call to_pylist() on every feature column and then copy each
+    of the resulting lists:
+
+        columns = [table.column(n).to_pylist() for n in features]
+        rows = [list(c) for c in columns] + [labels, list(split_of_row)]
+
+    An Arrow float32 is four bytes. The Python float it becomes is about
+    thirty-two, and the second line copies all 2,048 lists again. On the
+    training table -- 22,051 rows by 2,048 features, 0.7 MiB on disk and 180
+    MiB as Arrow -- that took 2.4 GB, thirteen times the table it was
+    writing. Two runs in parallel peaked at 4.1 GB and the screening stage
+    held almost all of it.
+
+    It also grew with the rows: measured 2026-10-15, the survivor side cost
+    220 MiB at 1,820 rows and 1,170 MiB at 10,000, so a loose specification
+    on a large slice was heading for a ceiling nobody had hit yet.
+
+    Arrow slices are views. Nothing is converted, nothing is copied, and the
+    peak is the table that was passed in plus one part being encoded.
     """
     out_dir.mkdir(parents=True, exist_ok=True)
     for stale in out_dir.glob("part-*.parquet"):
@@ -87,11 +109,17 @@ def write_parts(table, features, split_of_row, out_dir):
     schema = pa.schema(
         [(n, pa.float32()) for n in features] + [("label", pa.int8()), ("split", pa.int8())]
     )
-    columns = [table.column(n).to_pylist() for n in features]
-    labels = table.column("label").to_pylist()
-    rows = [list(c) for c in columns] + [labels, list(split_of_row)]
-    for part, start in enumerate(range(0, len(labels), PART_ROWS)):
-        chunk = [col[start:start + PART_ROWS] for col in rows]
+    split = pa.array(list(split_of_row), type=pa.int8())
+    total = table.num_rows
+    if len(split) != total:
+        raise ValueError(
+            f"{len(split):,} splits for {total:,} rows. A row's split and its "
+            f"features would be written from two different populations.")
+    for part, start in enumerate(range(0, total, PART_ROWS)):
+        length = min(PART_ROWS, total - start)
+        chunk = [table.column(n).slice(start, length) for n in features]
+        chunk.append(table.column("label").slice(start, length))
+        chunk.append(split.slice(start, length))
         pq.write_table(pa.table(chunk, schema=schema),
                        out_dir / f"part-{part:08d}.parquet", row_group_size=PART_ROWS)
 

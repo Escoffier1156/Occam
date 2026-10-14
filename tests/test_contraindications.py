@@ -986,3 +986,88 @@ class EvidenceIsDeclaredAndNotDiscovered(unittest.TestCase):
                 continue
             self.assertTrue(evidence.get("why"),
                             f"{path.parent.name} declares without a reason")
+
+
+class WritingPartsNeverTurnsTheRowsIntoPython(unittest.TestCase):
+    """write_parts() called to_pylist() on all 2,048 feature columns and then
+    copied every resulting list. An Arrow float32 is four bytes and the Python
+    float it becomes is about thirty-two, so writing the training table --
+    22,051 rows, 0.7 MiB on disk, 180 MiB as Arrow -- took 2.4 GB, thirteen
+    times the thing being written. Two runs in parallel peaked at 4.1 GB.
+
+    It also grew with the rows, so a loose specification on a large slice was
+    heading for a ceiling: 220 MiB of survivors at 1,820 rows, 1,170 MiB at
+    10,000. Measured 2026-10-15; after the change, 9 MiB at 10,000.
+    """
+
+    def test_no_column_is_converted_to_python(self):
+        """Structural. to_pylist() on a feature column is the conversion, and
+        list() over the result is the copy that followed it."""
+        tree = ast.parse(source("m3_order.py"))
+        found = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+                 and n.name == "write_parts"]
+        self.assertEqual(len(found), 1)
+        for node in ast.walk(found[0]):
+            if (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "to_pylist"):
+                self.fail("write_parts converts a column to Python, which "
+                          "costs eight times the bytes and is copied again")
+
+    def test_a_part_holds_exactly_one_row_group(self):
+        """The engine refuses more: a parquet footer grows with the row group
+        count, which would make its memory depend on the data volume. The
+        property had no test of write_parts' own output -- only of the
+        ingest's -- so rewriting the writer could have lost it silently."""
+        import tempfile
+
+        import pyarrow.parquet as pq
+
+        import folds as folds_mod
+        from m3_order import write_parts
+
+        table = pq.read_table(ROOT / "data" / "work" / "imi_fp"
+                              / "features.parquet")
+        names = [n for n in table.column_names
+                 if n not in ("label", "scaffold", "smiles")]
+        with tempfile.TemporaryDirectory() as directory:
+            out = Path(directory) / "parts"
+            write_parts(table, names,
+                        [folds_mod.TRAIN] * table.num_rows, out)
+            parts = sorted(out.glob("part-*.parquet"))
+            self.assertTrue(parts)
+            written = 0
+            for path in parts:
+                meta = pq.read_metadata(path)
+                self.assertEqual(meta.num_row_groups, 1, path.name)
+                written += meta.num_rows
+            self.assertEqual(written, table.num_rows,
+                             "the parts hold a different number of rows than "
+                             "the table they were written from")
+            # The slices are views; a view of the wrong window writes the
+            # wrong rows and nothing would say so.
+            back = pq.read_table(parts[0], columns=[names[0], "split"])
+            self.assertEqual(
+                back.column(0).to_pylist(),
+                table.column(names[0]).slice(0, back.num_rows).to_pylist(),
+                "the first part does not hold the first rows")
+
+    def test_a_split_per_row_or_it_stops(self):
+        """The loop used to run over len(labels), so a shorter split list was
+        truncated in silence and a row's features and its split would have
+        come from two different populations."""
+        import tempfile
+
+        import pyarrow.parquet as pq
+
+        import folds as folds_mod
+        from m3_order import write_parts
+
+        table = pq.read_table(ROOT / "data" / "work" / "imi_fp"
+                              / "features.parquet")
+        names = [n for n in table.column_names
+                 if n not in ("label", "scaffold", "smiles")]
+        with tempfile.TemporaryDirectory() as directory:
+            with self.assertRaises(ValueError):
+                write_parts(table, names, [folds_mod.TRAIN] * 10,
+                            Path(directory) / "parts")
