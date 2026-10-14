@@ -334,37 +334,68 @@ class TheExactPassHoldsOneSetAtATime(unittest.TestCase):
     specification measured -- the figure the sketch exists to avoid. Invariant
     3, one bulk at a time, applies to the second pass too."""
 
-    def test_the_exact_count_returns_counts_and_not_the_set(self):
+    def test_the_exact_count_returns_counts_and_not_the_sets(self):
         """Structural, not a measurement: a caller cannot accumulate what it
-        is never handed."""
-        import propose as propose_mod
-
-        returns = [node for node in ast.walk(ast.parse(
-            source("propose.py"))) if isinstance(node, ast.FunctionDef)
-            and node.name == "exact_scaffold_count"]
-        self.assertEqual(len(returns), 1)
-        keys = set()
-        for node in ast.walk(returns[0]):
-            if isinstance(node, ast.Return) and isinstance(node.value, ast.Dict):
-                keys = {k.value for k in node.value.keys
-                        if isinstance(k, ast.Constant)}
-        self.assertEqual(keys, {"survivors", "scaffolds_exact",
-                                "held_strings"},
+        is never handed. This is the part of the one-at-a-time shape that
+        survives holding several sets -- how many live inside the function is
+        a budget, but none of them leaving is a property."""
+        found = [node for node in ast.walk(ast.parse(source("propose.py")))
+                 if isinstance(node, ast.FunctionDef)
+                 and node.name == "exact_scaffold_counts"]
+        self.assertEqual(len(found), 1)
+        appended = set()
+        for node in ast.walk(found[0]):
+            if (isinstance(node, ast.Call)
+                    and isinstance(node.func, ast.Attribute)
+                    and node.func.attr == "append"
+                    and node.args and isinstance(node.args[0], ast.Dict)):
+                appended = {k.value for k in node.args[0].keys
+                            if isinstance(k, ast.Constant)}
+        self.assertEqual(appended, {"survivors", "scaffolds_exact",
+                                    "held_strings"},
                          "the exact pass returns something other than counts")
 
-    def test_the_passes_run_one_after_another(self):
-        """A comprehension or a map over the whole set would hold them all."""
+    def test_the_number_of_sets_held_at_once_is_a_declared_constant(self):
+        """The trade was turned around on 2026-10-14: the pass used to hold
+        one set and read the library once per specification, which cost two
+        and a half hours of I/O on the -O slice for numbers one pass already
+        had. It now holds SETS_AT_ONCE and batches, so the memory is bounded
+        by a constant and the passes by len(rows) / that constant.
+
+        What must not come back is an unbounded k: holding one set per
+        specification would make the peak depend on how many specifications
+        a request happens to produce."""
+        import propose as propose_mod
+
+        self.assertIsInstance(propose_mod.SETS_AT_ONCE, int)
+        self.assertGreater(propose_mod.SETS_AT_ONCE, 0)
+        self.assertLessEqual(propose_mod.SETS_AT_ONCE, propose_mod.FRONTIER)
+
         tree = ast.parse(source("propose.py"))
-        for node in ast.walk(tree):
-            if not isinstance(node, (ast.ListComp, ast.SetComp, ast.DictComp,
-                                     ast.GeneratorExp)):
-                continue
-            for inner in ast.walk(node):
-                if (isinstance(inner, ast.Call)
-                        and isinstance(inner.func, ast.Name)
-                        and inner.func.id == "exact_scaffold_count"):
-                    self.fail("the exact pass is run inside a comprehension, "
-                              "which holds every result at once")
+        batched = [n for n in ast.walk(tree)
+                   if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)
+                   and n.func.id == "range"
+                   and any(isinstance(a, ast.Name) and a.id == "SETS_AT_ONCE"
+                           for a in n.args)]
+        self.assertTrue(batched, "the rows are no longer read in batches of "
+                                 "SETS_AT_ONCE, so the sets held at once are "
+                                 "however many rows arrive")
+
+    def test_the_scaffold_is_computed_once_per_molecule(self):
+        """It was 27.6% of the per-molecule cost when it ran once, and the
+        old shape paid it once per specification per molecule. Holding the
+        value across the inner loop is the saving; computing it inside is
+        the regression."""
+        tree = ast.parse(source("propose.py"))
+        found = [n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef)
+                 and n.name == "exact_scaffold_counts"]
+        self.assertEqual(len(found), 1)
+        calls = [n for n in ast.walk(found[0])
+                 if isinstance(n, ast.Call)
+                 and isinstance(n.func, ast.Attribute)
+                 and n.func.attr == "MurckoScaffoldSmiles"]
+        self.assertEqual(len(calls), 1,
+                         "the scaffold is computed in more than one place")
 
     def test_the_frontier_width_is_a_declared_constant(self):
         import propose as propose_mod

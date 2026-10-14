@@ -99,56 +99,113 @@ def classify(spec, required, baseline):
     }
 
 
-def exact_scaffold_count(part_dir, choices, limit=None):
-    """Counts distinct scaffolds exactly for one variant, in a second pass.
+# How many scaffold sets may be held at once. The exact pass used to hold one
+# and read the library once per specification; it now holds up to this many
+# and reads the library once per batch of them.
+#
+# WHY THE TRADE WAS TURNED AROUND
+#
+# The old shape was invariant 3 applied to the second pass -- one bulk alive
+# at a time -- and its own docstring named the condition for changing it: "if
+# a budget ever justifies running k of these at once, k follows from the
+# budget by division". The budget arrived. On the -P slice (17,775 molecules)
+# a pass costs about 30 seconds, so eight of them cost four minutes and
+# nobody noticed. On -O (636,669) a pass costs about eighteen minutes, and a
+# request with three relaxable axes would have read the library eight times
+# for two and a half hours of I/O to produce numbers one pass already had.
+#
+# The sweep reads the library once and evaluates every specification against
+# each molecule. The exact pass threw that structure away and re-read. The
+# scaffold is also computed once per molecule now instead of once per
+# specification, which was the larger waste: MurckoScaffoldSmiles was 27.6%
+# of the per-molecule cost when it ran once.
+#
+# WHAT IT COSTS, MEASURED
+#
+# A scaffold set is its SMILES strings: 108 bytes each as Python holds them,
+# measured 2026-10-14 over 4,330 scaffolds on the -P slice. The widest
+# specification in any sweep on this disk is 112,903 scaffolds, on -O
+# (data/work/sweep_O.json), so eight sets at that width is about 97 MB.
+#
+# WITHDRAWN: contraindication 84 and the old docstring both put the widest
+# measured specification at 46,437 scaffolds and 127.4 B each, for 45 MB. No
+# record on this disk holds 46,437 -- the four sweeps kept here top out at
+# 4,354 (-P), 41,397 (-N, one million read) and 112,903 (-O) -- and which
+# library it came from was never written down. The figure is replaced by the
+# measured ones rather than carried forward.
+#
+# This is a count, not a budget divided by anything, because the divisor
+# would be the scaffold count and that is what the pass exists to find out.
+# A sketch estimate of it carries a 4.8% band, and sizing memory from an
+# estimate means the estimate being wrong is a memory fault rather than a
+# number being slightly off.
+SETS_AT_ONCE = FRONTIER
 
-    ONE VARIANT AT A TIME, AND THE SET NEVER LEAVES THIS FUNCTION
 
-    The set is local and what comes back is a count, so the caller cannot
-    accumulate sets even by accident. That matters because the frontier's
-    limit of 8 bounds the NUMBER of exact passes and not the memory of each:
-    eight sets held at once would be eight times the peak, and at the widest
-    specification measured here -- 46,437 scaffolds -- that is 45 MB, which is
-    the whole figure the sketch exists to avoid.
+def exact_scaffold_counts(part_dir, rows, limit=None):
+    """Counts distinct scaffolds exactly for several variants, in one pass.
 
-    Run sequentially, the peak is one specification's set: about 5.6 MiB at
-    that width. This is invariant 3 applied to the second pass -- one bulk
-    alive at a time -- and the cost is I/O, one pass over the library per
-    specification rather than one in total.
+    EVERY SET IS LOCAL AND WHAT COMES BACK IS COUNTS
 
-    If a budget ever justifies running k of these at once, k follows from the
-    budget by division: k x (widest scaffold count) x (bytes per scaffold).
-    That is arithmetic from a declared budget, not an invented weight.
+    The sets live in this function and the caller is handed numbers, so it
+    cannot accumulate them even by accident -- the property the one-at-a-time
+    shape was protecting, which does not depend on how many are held here.
+
+    At most SETS_AT_ONCE are held together; a longer list is read in batches
+    of that size, so the memory is bounded by the constant and the number of
+    passes is len(rows) / SETS_AT_ONCE rather than len(rows).
+
+    Returns one count dict per row, in the order given.
     """
-    variant = sweep_mod.Variant(choices)
     nitrogen = {s["name"]: s for s in knobs_mod.settings_of("nitrogen")}
-    scaffolds = set()
-    survivors = 0
-    for text in sweep_mod.iter_library(part_dir, limit):
-        mol = smiles_mod.parse(text)
-        if mol is None:
-            continue
-        weight = Descriptors.MolWt(mol)
-        rotatable = rdMolDescriptors.CalcNumRotatableBonds(mol)
-        if weight >= variant.mw_limit or rotatable > variant.rot_limit:
-            continue
-        if not nitrogen[choices["nitrogen"]]["test"](mol):
-            continue
-        survivors += 1
-        try:
-            scaffolds.add(MurckoScaffold.MurckoScaffoldSmiles(mol=mol) or "")
-        except ValueError:
-            scaffolds.add("")
-    # A distinct count cannot exceed the population it was counted from. The
-    # cheapest possible check, and it catches every way two scopes can get
-    # mixed into one row.
-    if len(scaffolds) > survivors:
-        raise ValueError(
-            f"{len(scaffolds):,} distinct scaffolds from {survivors:,} "
-            f"survivors is impossible. Two different populations have been "
-            f"counted as one.")
-    return {"survivors": survivors, "scaffolds_exact": len(scaffolds),
-            "held_strings": len(scaffolds)}
+    out = []
+    for first in range(0, len(rows), SETS_AT_ONCE):
+        batch = rows[first:first + SETS_AT_ONCE]
+        variants = [sweep_mod.Variant(choices) for choices in batch]
+        scaffolds = [set() for _ in batch]
+        survivors = [0] * len(batch)
+        for text in sweep_mod.iter_library(part_dir, limit):
+            mol = smiles_mod.parse(text)
+            if mol is None:
+                continue
+            weight = Descriptors.MolWt(mol)
+            rotatable = rdMolDescriptors.CalcNumRotatableBonds(mol)
+            # Computed at most once per molecule, and only once some
+            # specification has kept it. Profiled at 27.6% of the
+            # per-molecule cost, and the old shape paid it once per
+            # specification per molecule.
+            scaffold = None
+            for index, (choices, variant) in enumerate(zip(batch, variants)):
+                if weight >= variant.mw_limit or rotatable > variant.rot_limit:
+                    continue
+                if not nitrogen[choices["nitrogen"]]["test"](mol):
+                    continue
+                survivors[index] += 1
+                if scaffold is None:
+                    try:
+                        scaffold = MurckoScaffold.MurckoScaffoldSmiles(mol=mol) or ""
+                    except ValueError:
+                        scaffold = ""
+                scaffolds[index].add(scaffold)
+        for index, choices in enumerate(batch):
+            # A distinct count cannot exceed the population it was counted
+            # from. The cheapest possible check, and it catches every way two
+            # scopes can get mixed into one row.
+            if len(scaffolds[index]) > survivors[index]:
+                raise ValueError(
+                    f"{len(scaffolds[index]):,} distinct scaffolds from "
+                    f"{survivors[index]:,} survivors is impossible. Two "
+                    f"different populations have been counted as one.")
+            out.append({"survivors": survivors[index],
+                        "scaffolds_exact": len(scaffolds[index]),
+                        "held_strings": len(scaffolds[index])})
+        del scaffolds
+    return out
+
+
+def exact_scaffold_count(part_dir, choices, limit=None):
+    """One variant. The single-row case of exact_scaffold_counts()."""
+    return exact_scaffold_counts(part_dir, [choices], limit)[0]
 
 
 def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
@@ -273,8 +330,14 @@ def propose(sweep_report, required, part_dir=None, limit=None, exact=True):
             f"pass exact=False to keep the sketch's numbers.")
 
     if exact and part_dir and wanted:
-        for row in wanted.values():
-            measured = exact_scaffold_count(part_dir, row["choices"], limit)
+        # One pass for every specification that needs an exact count, rather
+        # than one pass each. The list is materialised deliberately: the
+        # memory it bounds is the SCAFFOLD SETS inside, which are batched at
+        # SETS_AT_ONCE, and a row here is a dict of counts and choices.
+        targets = list(wanted.values())
+        measurements = exact_scaffold_counts(
+            part_dir, [row["choices"] for row in targets], limit)
+        for row, measured in zip(targets, measurements):
             row["exact"] = measured
             # The exact pass recounted the survivors too. Keeping the sketch
             # pass's figure beside the exact scaffold count is what produced
