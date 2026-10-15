@@ -70,8 +70,8 @@
       "original_code": "# Every \"take the first of the tied ones\" is a way for input order to decide\n# the output. ECFP ignores stereochemistry, so stereoisomers score identically,\n# and deduplication silently became selection by file position until this was\n# added. The shuffle control went from 80% back to 100%.\ndef rank_key(i, scores, props):\n    \"\"\"Sort key: score first, then a property of the molecule itself.\n\n    Scores alone are not enough to order the list. ECFP does not encode\n    stereochemistry, so stereoisomers receive identical scores, and any\n    \"take the first\" step over them -- choosing a representative, cutting the\n    top N -- would be settled by the order the rows happened to arrive in.\n    That order is not neutral here: the library's leading rows carry 2.27x the\n    base hit rate. Breaking ties on the InChIKey removes the question.\n    \"\"\"\n    return (-scores[i], props[i][\"inchikey\"] or \"\", i)",
       "cached_counterexamples": [],
       "target_symbol": "deterministic_tiebreak",
-      "start_line": 151,
-      "end_line": 167
+      "start_line": 166,
+      "end_line": 182
     },
     "py/descriptors.py#lock_0": {
       "file_path": "py/descriptors.py",
@@ -94,8 +94,20 @@
       "original_code": "# This caught a real failure: 78% of a library shared one score because the\n# logistic function had saturated in f32, the sort fell back on file order,\n# and the file order was itself enriched for hits. The result looked like a\n# permeability effect and was reported as one.\ndef assert_ranking_is_usable(scores, tag, max_tie=MAX_TIE_SHARE,\n                             min_distinct=MIN_DISTINCT_SHARE):\n    \"\"\"Refuses a score array that cannot order its rows; returns the diagnostics.\"\"\"\n    counts = Counter(scores)\n    value, n = counts.most_common(1)[0]\n    tie_share = n / len(scores)\n    distinct_share = len(counts) / len(scores)\n    if tie_share > max_tie:\n        raise RuntimeError(\n            f\"{tag}: {n}/{len(scores)} rows ({tie_share:.1%}) share the score \"\n            f\"{value!r}, above the {max_tie:.0%} limit. Ranking them would order \"\n            f\"by file position, not by the model. Rank on the logit, and check \"\n            f\"how far this data sits from what the model was fitted to.\"\n        )\n    if distinct_share < min_distinct:\n        raise RuntimeError(\n            f\"{tag}: only {len(counts)}/{len(scores)} distinct scores \"\n            f\"({distinct_share:.1%}), below the {min_distinct:.0%} limit. Most \"\n            f\"comparisons would be decided by file position rather than by score.\"\n        )\n    return {\"tie_share\": tie_share, \"distinct_share\": distinct_share}",
       "cached_counterexamples": [],
       "target_symbol": "ranking_guard",
-      "start_line": 159,
-      "end_line": 185
+      "start_line": 187,
+      "end_line": 213
+    },
+    "py/screenable.py#lock_0": {
+      "file_path": "py/screenable.py",
+      "lock_index": 0,
+      "mode": "ast",
+      "strict_hash": "5326019fbb83c317ea2499c1c96d3c93ef9cbefc0d84204d71caa24708edd949",
+      "ast_hash": "fbde2a97624818dd44670987af2855fc535c6c7d8f417dd7e96a588b837e4257",
+      "original_code": "#\n# Structure, because behaviour could not be locked here and saying so is the\n# point.\n#\n# This was marked `pbt` first, to fix what the function RETURNS over ten\n# thousand inputs rather than how it is written -- the right shape for a rule\n# whose three unit-tested cases can all be satisfied by an implementation that\n# still has the asymmetry wrong. The vendored engine reported a pass on an\n# implementation reduced to `return \"answerable\"`.\n#\n# It generates one integer argument, execs the region in an empty namespace,\n# and swallows every exception from the call. rank_verdict takes three\n# arguments and reads two module constants, so all ten thousand calls raised\n# TypeError, were skipped, and the run ended green. A check that cannot fail\n# is worse than no check: it is the shape that let `unittest discover` report\n# success having run nothing, twice this week.\n#\n# So the lock is structural, which does stop a silent rewrite, and the\n# behaviour is held by a property test over generated inputs in\n# tests/test_contraindications.py, where the generation can be written for\n# this function's actual signature.\ndef rank_verdict(distinct_share, top_share, sampled):\n    \"\"\"A SAMPLE CAN REFUSE A SET AND CANNOT CLEAR ONE.\n\n    The distinct share rises as fewer molecules are measured: collisions get\n    rarer when there are fewer pairs to collide. Measured on two independent\n    sets, every step down in count raised it --\n\n        430 survivors:    n=100 0.780  n=200 0.675  n=400 0.4975  n=430 0.486\n      1,820 survivors:  n=1200 0.5967  n=1500 0.5253  n=1820 0.4648\n\n    -- so a sampled figure behaves as an UPPER BOUND on the figure the whole\n    set would give. That makes the two directions unequal:\n\n      below the floor on a sample -> the full set is also below -> the refusal\n        can be stated from the sample. This is what the module was built on:\n        deciding that a model CANNOT order a set does not need every row.\n\n      above the floor on a sample -> the full set may be below it, and here\n        was: 1,200 of 1,820 gave 0.5967 and passed, and all 1,820 gave 0.4648\n        and did not. The pass was the sample, not the model.\n\n    The old code took the docstring's licence for the first case and applied\n    it to the second. Of six runs, the one specification whose survivor set\n    was larger than the sample was the only one reported rankable.\n\n    Both directions lean on the bound holding, which is OBSERVED IN TWO SETS\n    AND NOT PROVEN, so a sampled verdict says so either way. The risks are not\n    symmetric -- claiming an order exists is worse than denying one that does\n    -- but neither branch is assumption-free, and declining to call the\n    monotonicity a theorem means disclosing where it is being relied on.\n\n    Separated from rankability() so the rule can be tested without a model, a\n    library and twelve minutes of fingerprinting. It is the whole of the\n    decision; rankability() measures the two shares and hands them here.\n    \"\"\"\n    clears = distinct_share >= MIN_DISTINCT_SHARE and top_share <= MAX_TIE_SHARE\n    if not clears:\n        return \"not_answerable\"\n    return \"not_settled_at_this_sample\" if sampled else \"answerable\"",
+      "cached_counterexamples": [],
+      "target_symbol": "rank_verdict",
+      "start_line": 358,
+      "end_line": 419
     },
     "py/smiles.py#lock_0": {
       "file_path": "py/smiles.py",

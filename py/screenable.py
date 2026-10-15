@@ -355,6 +355,28 @@ def full_measurement_seconds(total):
     return RANKING_FIXED_SECONDS
 
 
+# [LOCK: ast name="rank_verdict"]
+#
+# Structure, because behaviour could not be locked here and saying so is the
+# point.
+#
+# This was marked `pbt` first, to fix what the function RETURNS over ten
+# thousand inputs rather than how it is written -- the right shape for a rule
+# whose three unit-tested cases can all be satisfied by an implementation that
+# still has the asymmetry wrong. The vendored engine reported a pass on an
+# implementation reduced to `return "answerable"`.
+#
+# It generates one integer argument, execs the region in an empty namespace,
+# and swallows every exception from the call. rank_verdict takes three
+# arguments and reads two module constants, so all ten thousand calls raised
+# TypeError, were skipped, and the run ended green. A check that cannot fail
+# is worse than no check: it is the shape that let `unittest discover` report
+# success having run nothing, twice this week.
+#
+# So the lock is structural, which does stop a silent rewrite, and the
+# behaviour is held by a property test over generated inputs in
+# tests/test_contraindications.py, where the generation can be written for
+# this function's actual signature.
 def rank_verdict(distinct_share, top_share, sampled):
     """A SAMPLE CAN REFUSE A SET AND CANNOT CLEAR ONE.
 
@@ -394,6 +416,7 @@ def rank_verdict(distinct_share, top_share, sampled):
     if not clears:
         return "not_answerable"
     return "not_settled_at_this_sample" if sampled else "answerable"
+# [/LOCK]
 
 
 def sample_survivors(survivors, size=SAMPLE, seed=SAMPLE_SEED):

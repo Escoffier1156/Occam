@@ -24,6 +24,8 @@ import sys
 import unittest
 from pathlib import Path
 
+from hypothesis import given, settings, strategies as st
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "py"))
 
@@ -1071,3 +1073,61 @@ class WritingPartsNeverTurnsTheRowsIntoPython(unittest.TestCase):
             with self.assertRaises(ValueError):
                 write_parts(table, names, [folds_mod.TRAIN] * 10,
                             Path(directory) / "parts")
+
+
+class TheAsymmetryHoldsForEveryInput(unittest.TestCase):
+    """rank_verdict() over generated inputs, not three fixed points.
+
+    The three cases checked elsewhere in this file can all be satisfied by an
+    implementation that still has the rule wrong -- one honouring `sampled`
+    only below some share passes every one of them. KeepOut's `pbt` mode is
+    meant for exactly this and could not be used: it generates a single
+    integer argument and execs the region in an empty namespace, so all ten
+    thousand calls to a three-argument function reading two module constants
+    raised TypeError, were swallowed, and the check reported a pass on an
+    implementation reduced to `return "answerable"`.
+
+    The region is locked structurally instead, and the behaviour is held
+    here, where the generation can be written for the real signature.
+    """
+
+    @settings(max_examples=2000, deadline=None, database=None)
+    @given(distinct=st.floats(min_value=0.0, max_value=1.0),
+           top=st.floats(min_value=0.0, max_value=1.0),
+           sampled=st.booleans())
+    def test_a_sample_never_returns_answerable(self, distinct, top, sampled):
+        """The whole asymmetry in one line: measuring part of a set can put
+        it below the floor, and can never put it above."""
+        import screenable as sc
+
+        verdict = sc.rank_verdict(distinct, top, sampled)
+        if sampled:
+            self.assertNotEqual(
+                verdict, "answerable",
+                f"{distinct}/{top} measured on a sample was called orderable")
+
+    @settings(max_examples=2000, deadline=None, database=None)
+    @given(distinct=st.floats(min_value=0.0, max_value=1.0),
+           top=st.floats(min_value=0.0, max_value=1.0))
+    def test_a_refusal_does_not_depend_on_having_sampled(self, distinct, top):
+        """Below the floor, the sample and the whole set agree: the full set
+        is lower still. This is the direction the module was built on, and it
+        must not start depending on how the measurement was taken."""
+        import screenable as sc
+
+        full = sc.rank_verdict(distinct, top, sampled=False)
+        part = sc.rank_verdict(distinct, top, sampled=True)
+        if full == "not_answerable":
+            self.assertEqual(part, "not_answerable")
+
+    @settings(max_examples=2000, deadline=None, database=None)
+    @given(distinct=st.floats(min_value=0.0, max_value=1.0),
+           top=st.floats(min_value=0.0, max_value=1.0),
+           sampled=st.booleans())
+    def test_every_verdict_is_one_the_screen_can_say(self, distinct, top,
+                                                     sampled):
+        import render as render_mod
+        import screenable as sc
+
+        self.assertIn(sc.rank_verdict(distinct, top, sampled),
+                      render_mod.VERDICT)

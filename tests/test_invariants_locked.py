@@ -57,6 +57,12 @@ REQUIRED_LOCKS = {
         "the two steps that keep the repaired parse equal to RDKit's own "
         "default: RemoveHs, and the stereochemistry assignment the InChIKey "
         "tie-break depends on",
+    "py/screenable.py#lock_0":
+        "the asymmetry: a sample can put a set below the distinct-share floor "
+        "and can never put one above it. Structural here because the `pbt` "
+        "mode could not call this function and passed vacuously; the "
+        "behaviour is held by the property tests in "
+        "tests/test_contraindications.py",
 }
 
 
