@@ -306,6 +306,40 @@ def report(survivors, covered_at=COVERED_AT, band=BAND, dataset=None,
                             "to 0.6 are common practice and 0.4 is the lenient "
                             "end",
         "compounds_to_measure": len(clusters),
+        # WHAT THIS COUNT IS A COUNT OF
+        #
+        # MAX_MOLECULES says "sample and say so instead". The sample happened
+        # and the saying did not: the screen printed "3,992 compounds
+        # measured, one per neighbourhood" for a set of 518,027, and 3,992 is
+        # the neighbourhoods found in the 6,000 that were clustered.
+        #
+        # It does not saturate. Measured on that set, 2026-10-16:
+        #
+        #     500 sampled ->   477 neighbourhoods (95.4%)
+        #   1,000        ->   905 (90.5%)
+        #   2,000        -> 1,680 (84.0%)
+        #   4,000        -> 2,932 (73.3%)
+        #   6,000        -> 3,992 (66.5%)
+        #
+        # Two thirds of every sample are still their own neighbourhood at the
+        # largest size this can cluster, so the count tracks the sample and
+        # the whole set's figure is larger by an amount this cannot see.
+        # Butina holds the full lower triangle, so 518,027 molecules is not a
+        # bigger run, it is 134 billion distances.
+        #
+        # So the figure is reported as what it is: a floor, measured on a
+        # sample, with the sample named beside it. A reader deciding whether
+        # to fund the measuring needs to know the real number is above this
+        # one, and by how much is not known.
+        "counted_on": total,
+        "of_survivors": len(survivors),
+        "is_a_floor": total < len(survivors),
+        "why_a_floor": (
+            "clustered on a sample, and the neighbourhood count does not "
+            "saturate: two thirds of the sample are still their own "
+            "neighbourhood at the largest size this can cluster. The whole "
+            "set needs more than this, and how many more is not measured "
+            "here" if total < len(survivors) else None),
         "neighbourhood_sizes": {"largest": sizes[0],
                                 "median": sizes[len(sizes) // 2],
                                 "singletons": sum(1 for s in sizes if s == 1)},

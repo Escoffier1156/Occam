@@ -1029,12 +1029,22 @@ def show(body, cost=None):
         sizes = cost["neighbourhood_sizes"]
         band = ", ".join(f"{row['covered_at']:.2f}: {row['compounds']:,}"
                          for row in cost["sensitivity"])
-        print(f"      what would close it: "
+        # The population this was counted on, beside the count. Every other
+        # figure in this block names one -- "measured on 1,200 of 518,027" --
+        # and this one printed a bare number for a set it had sampled.
+        floor = " at least" if cost.get("is_a_floor") else ""
+        print(f"      what would close it:{floor} "
               f"{cost['compounds_to_measure']:,} compounds measured, one per "
               f"neighbourhood")
         print(f"        at Tanimoto {cost['covered_at']}. "
               f"{cost['for_half_the_set']:,} of them cover half the set, "
               f"{cost['for_four_fifths']:,} cover four fifths")
+        if cost.get("is_a_floor"):
+            print(f"        clustered on {cost['counted_on']:,} of "
+                  f"{cost['of_survivors']:,} survivors")
+            for line in render_mod.wrap(cost["why_a_floor"], indent=8,
+                                        hanging=10):
+                print(line)
         print(f"        {sizes['singletons']:,} neighbourhoods hold one "
               f"compound, so the tail is one purchase each")
         for line in render_mod.wrap(
