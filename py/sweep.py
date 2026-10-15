@@ -256,10 +256,24 @@ def run(part_dir, variants, limit=None, exact_check=False):
         # saving: K specifications, one RDKit pass.
         hits = {name: bool(body["test"](mol)) for name, body in nitrogen_settings.items()}
 
-        # Profiled at 27.6% of the per-molecule cost, and only a survivor needs
-        # one: survivors were 2.5% of the slice measured, so computing it for
-        # every molecule spent a quarter of the run on rows no specification
-        # kept. Deferred to the first variant that asks for it.
+        # Profiled on the -P slice, 17,775 molecules, 2026-10-16:
+        #
+        #     smiles.parse            10.28 s
+        #     MurckoScaffoldSmiles     5.24 s   27.8% of the total
+        #     CalcNumRotatableBonds    2.36 s
+        #     nitrogen tests (3)       0.86 s
+        #     MolWt                    0.07 s
+        #                             ------
+        #                             18.81 s
+        #
+        # The figure had been carried as "27.6%" with no record behind it,
+        # and re-measuring put it at 27.8%. It was right; it just could not
+        # be checked, which is the same position as being wrong until someone
+        # measures.
+        # Only a survivor needs one, and survivors were 2.5% of the slice
+        # measured, so computing it for every molecule spent a quarter of the
+        # run on rows no specification kept. Deferred to the first variant
+        # that asks for it.
         holder = []
 
         def scaffold_of():

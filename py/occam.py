@@ -675,6 +675,15 @@ def main():
     parser.add_argument("--no-screenable", action="store_true",
                         help="skip the two verdicts about what a screen would "
                              "establish (they cost one scoring pass over a sample)")
+    parser.add_argument("--detail", action="store_true",
+                        help="a third block after the answer: how the ties "
+                             "are shaped, how far short the ordering fell, "
+                             "how the measurement count moves with the "
+                             "threshold, what else the frontier held. All of "
+                             "it is already computed, so this measures "
+                             "nothing and hides nothing when left off -- no "
+                             "limit is disclosed there that is not named "
+                             "without it")
     parser.add_argument("--full", action="store_true",
                         help="measure the ordering verdict on every survivor, "
                              "however many there are. Without it a set past "
@@ -894,6 +903,16 @@ def main():
     if not spec["deliverable"]:
         return stop("no deliverable named. 'N distinct scaffolds' is what "
                     "the feasibility test needs.")
+    # What it will cost, before it is paid. The figures are in hand -- the
+    # library's row count was read to name it -- and were not being said.
+    rows = (library_check or {}).get("library", {}).get("rows")
+    if rows is None:
+        rows = next((e.get("rows") for e in inventory_mod.declared()
+                     if spec.get("library") in (e.get("artefacts") or [])),
+                    None)
+    for line in render_mod.cost_warning(rows):
+        print(line)
+
     if args.dry_run or blocking:
         return 0
 
@@ -1094,6 +1113,10 @@ def main():
                      if library_check
                      else declared_phrase or spec.get("library"))):
         print(line)
+
+    if args.detail:
+        for line in render_mod.detail(screen_body, screen_cost, result):
+            print(line)
 
     written = ["request.json", "sweep.json", "proposal.json"]
     if not args.no_screenable:

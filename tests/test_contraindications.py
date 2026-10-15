@@ -1131,3 +1131,19 @@ class TheAsymmetryHoldsForEveryInput(unittest.TestCase):
 
         self.assertIn(sc.rank_verdict(distinct, top, sampled),
                       render_mod.VERDICT)
+
+
+class TheFrontierWidthIsOneNumberInTwoPlaces(unittest.TestCase):
+    """screenable quotes the cost of measuring the frontier's alternatives
+    and needs its width to do so. Importing propose for one integer would
+    make the screening module depend on the proposer, so the number is
+    declared in both -- which is the shape contraindication 83 is about, and
+    is allowed here only because this test keeps them equal."""
+
+    def test_the_two_declarations_agree(self):
+        import propose as propose_mod
+        import screenable as sc
+
+        self.assertEqual(sc.FRONTIER_FOR_COST, propose_mod.FRONTIER,
+                         "the quoted cost is for a different number of "
+                         "specifications than the frontier shows")

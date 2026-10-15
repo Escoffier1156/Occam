@@ -242,9 +242,9 @@ def ranking_answer(asked, rank_verdict):
                     f"tie-break.", indent=2, hanging=4)
     # Answerable, and still not produced. The verdict says the order would be
     # the model's; it does not make this tool the thing that hands over a list.
-    return wrap(f"{head} The model can order this set, so such a list would "
-                f"be its ordering rather than a tie-break -- but no molecules "
-                f"are emitted here. What the verdict licenses is running the "
+    return wrap(f"{head} The scores separate this set, so such a list would "
+                f"follow them rather than a tie-break -- but no molecules are "
+                f"emitted here. What the verdict licenses is running the "
                 f"screen, not receiving the list from this tool.",
                 indent=2, hanging=4)
 
@@ -457,6 +457,26 @@ def answer(spec, result, body=None, cost=None, library=None):
         app = body.get("applicability", {})
         out.append(f"  a screen of it could be ordered: "
                    f"{verdict(rank.get('verdict'))}")
+        # EVERY LIMIT NAMED HERE CARRIES ITS NEXT STEP
+        #
+        # The applicability verdict has had one since it was written -- "3,992
+        # compounds measured, 1,003 of them for half the set" -- and the
+        # ordering verdict had none. Put side by side, one line said what to
+        # do and the other said only that something could not be done, and a
+        # reader takes that as the tool's limit rather than the set's.
+        #
+        # The gap was in the record, not only on the screen: the detail block
+        # said the alternatives were "measurable and have not been measured
+        # here", with no count beside it.
+        short_by = rank.get("short_by")
+        if short_by:
+            out += wrap(f"short by {short_by:,} distinct scores out of "
+                        f"{rank.get('sampled', 0):,}",
+                        indent=4, hanging=6)
+        step = ((body.get("suggested_revisions") or {}).get("ranking") or {})
+        if step.get("measured_alternatives"):
+            out += wrap(f"to settle it: {step['measured_alternatives']}",
+                        indent=4, hanging=6)
         out.append(f"  its activity could be predicted: "
                    f"{verdict(app.get('verdict'))}")
         control = (app.get("control") or {}).get("verdict")
@@ -607,4 +627,217 @@ def unread_lines(pieces, show=8):
     out += wrap("If any of that was a requirement, it has been lost: this "
                 "reads a closed vocabulary and does not guess. Say it in the "
                 "wording shown above.", indent=2)
+    return out
+
+
+def detail(body, cost=None, proposal=None):
+    """The third layer: depth on what the default already disclosed.
+
+    THE RULE THIS BLOCK LIVES UNDER
+    --------------------------------------------------------------------
+    It adds detail to limits the default names. It never moves a limit here.
+
+    That distinction is the whole safety of having a flag at all. Run 6's
+    passing ranking verdict was caught because the line saying how many of
+    the survivors had been measured printed by default -- behind a flag, nobody would have looked, and a
+    verdict produced by a sample would have gone out as a verdict about a
+    set. So the default keeps the verdict, the population it was measured
+    on, that a constraint exists, and one line on what would settle it. What
+    comes here is the breakdown: how the ties are shaped, how the count moves
+    with the threshold, what the alternatives would cost.
+
+    Everything here is already computed. Nothing is measured for this block,
+    so asking for it costs nothing and skipping it hides nothing.
+    """
+    out = ["", "=" * 72, "DETAIL", "=" * 72,
+           "", "  Everything below was already computed for the verdicts "
+           "above. Nothing", "  was measured for this block, and no limit is "
+           "disclosed here that was not", "  named there."]
+
+    rank = (body or {}).get("rankability") or {}
+    if rank.get("distinct_share") is not None:
+        out.append("")
+        out.append("  ordering: how the scores are distributed")
+        out += wrap(f"{rank['distinct_share']:.1%} of scores distinct, "
+                    f"{rank.get('tie_share', 0):.1%} shared, measured on "
+                    f"{rank.get('sampled', 0):,} of "
+                    f"{rank.get('of_survivors', 0):,}", indent=4, hanging=6)
+        if rank.get("short_by"):
+            out += wrap(f"{rank['short_by']:,} more distinct scores would "
+                        f"reach the {rank.get('floor_distinct', 0):.0%} floor",
+                        indent=4, hanging=6)
+        tie = rank.get("largest_tie") or {}
+        if tie.get("molecules"):
+            out += wrap(f"largest group sharing one score: "
+                        f"{tie['molecules']:,} molecules "
+                        f"({tie.get('share_of_set', 0):.3%} of the set), "
+                        f"the score itself {rank.get('most_common_value')}",
+                        indent=4, hanging=6)
+            out += wrap(tie["reads_as"], indent=6, hanging=8)
+        if rank.get("logit_range"):
+            low, high = rank["logit_range"]
+            out += wrap(f"scores span {low} to {high}", indent=4, hanging=6)
+
+    app = (body or {}).get("applicability") or {}
+    near = app.get("nearest_tanimoto") or {}
+    if near:
+        out.append("")
+        out.append("  applicability: how far outside, not just that it is")
+        out += wrap(f"nearest training structure: median "
+                    f"{near.get('median')}, best {near.get('max')}, "
+                    f"threshold {app.get('threshold')}", indent=4, hanging=6)
+        if near.get("p5") is not None:
+            out += wrap(f"the nearest twentieth reaches {near['p5']}",
+                        indent=4, hanging=6)
+
+    if cost and cost.get("sensitivity"):
+        out.append("")
+        out.append("  what to measure: how the count moves with the threshold")
+        for row in cost["sensitivity"]:
+            out += wrap(f"at Tanimoto {row.get('covered_at')}: "
+                        f"{row.get('compounds'):,} compounds",
+                        indent=4, hanging=6)
+        sizes = cost.get("neighbourhood_sizes") or {}
+        if sizes:
+            out += wrap(f"neighbourhoods: largest {sizes.get('largest'):,} "
+                        f"compounds, median {sizes.get('median'):,}, "
+                        f"{sizes.get('singletons'):,} hold one -- the tail "
+                        f"is one purchase each", indent=4, hanging=6)
+        curve = cost.get("curve") or []
+        if curve:
+            marks = [r for r in curve
+                     if r.get("share_covered", 0) >= 0.5][:1]
+            if marks:
+                out += wrap(f"half the set is covered by "
+                            f"{marks[0]['compounds_measured']:,} of them",
+                            indent=4, hanging=6)
+
+    if proposal and proposal.get("frontier"):
+        out.append("")
+        out.append("  the frontier: what else was compared")
+        for row in proposal["frontier"]:
+            exact = (row.get("exact") or {}).get("scaffolds_exact")
+            counted = "exact" if exact is not None else "sketch"
+            count = exact if exact is not None else row.get(
+                "scaffolds_estimated")
+            out += wrap(f"{spec_phrase(row['choices'])} -> {count:,} "
+                        f"scaffolds ({counted}), {row['survivors']:,} "
+                        f"molecules, {row.get('steps_from_baseline')} step(s) "
+                        f"from the request", indent=4, hanging=6)
+
+    out.append("=" * 72)
+    return out
+
+
+def tie_diagnosis_lines(body):
+    """Why the scores tie, what was ruled out, and what would change it.
+
+    The revision this replaces was one sentence and was wrong. What a reader
+    needs when told a set cannot be ordered is not a verdict restated: it is
+    what is tied, what has already been tried, what would work, and what that
+    would cost in something other than minutes.
+    """
+    out = []
+    out += wrap(f"{body['distinct_fingerprints']:,} distinct fingerprints "
+                f"among {body['measured_on']:,} molecules "
+                f"({body['distinct_share']:.1%})"
+                + ("" if body["measured_on"] == body["of_survivors"]
+                   else f", measured on {body['measured_on']:,} of "
+                        f"{body['of_survivors']:,}"),
+                indent=4, hanging=6)
+    out += wrap(body["why_this_bounds_the_score_count"], indent=6, hanging=8)
+
+    out.append("")
+    out += wrap("already ruled out:", indent=4, hanging=6)
+    for name, count in body["ruled_out"]["a bigger fingerprint"].items():
+        out += wrap(f"{name}: {count:,} distinct -- unchanged",
+                    indent=6, hanging=8)
+    out += wrap(body["ruled_out"]["reads_as"], indent=6, hanging=8)
+    out += wrap(body["what_does_not_help"], indent=6, hanging=8)
+
+    dup = body["what_the_duplicates_are"]
+    out.append("")
+    out += wrap(f"what is tied: {dup['molecules']:,} molecules in "
+                f"{dup['groups']:,} groups, the largest holding "
+                f"{dup['largest_group']:,}", indent=4, hanging=6)
+    if dup["groups"]:
+        share = dup["groups_that_are_stereoisomers_only"] / dup["groups"]
+        out += wrap(f"{dup['groups_that_are_stereoisomers_only']:,} of those "
+                    f"groups ({share:.1%}) collapse to one structure when "
+                    f"stereochemistry is dropped", indent=6, hanging=8)
+    out += wrap(dup["reads_as"], indent=6, hanging=8)
+
+    fix = body["what_would_separate_them"]
+    out.append("")
+    out += wrap(f"what would separate them: counting chirality gives "
+                f"{fix['counting chirality']:,} distinct ({fix['share']:.1%}), "
+                f"which {'clears' if fix['clears_the_floor'] else 'does not clear'} "
+                f"the floor", indent=4, hanging=6)
+    out += wrap(fix["what_it_would_take"], indent=6, hanging=8)
+    out += wrap(fix["and_it_is_a_chemical_decision"], indent=6, hanging=8)
+    return out
+
+
+# WHAT A RUN COSTS, FROM TWO MEASURED RUNS
+#
+# Fitted to the only two whole runs timed end to end on this machine. The
+# first attempt at these constants was not a measurement at all: 800 s per
+# million read was written down with the comment "sweep plus one exact pass,
+# measured", and the sweep alone is 796. The exact recount -- 1,269 s of the
+# -O run's 2,258 -- had been left out of a number labelled as covering it,
+# and the run it predicted at 13 minutes took 38.
+#
+# The lesson is not that stage sums are unreliable. It is that a figure
+# marked "measured" has to have been measured, and this one was a guess
+# wearing the word.
+#
+#     -P   17,775 molecules    532 s   (2026-10-15, nothing else running)
+#     -O  636,669 molecules  2,258 s   (2026-10-15, --full)
+#
+# Two points fix a line, and the line says what the stage timings already
+# said about its shape: a part that scales with the molecules read (the sweep
+# and the exact recount) and a part that does not (the ranking fit, which
+# took the same wall clock on 200 molecules as on 13,946).
+#
+# Two points are also two points. A third run far from these would move the
+# figures, and the sentence they produce says "about" for that reason.
+RUNS_TIMED = {17775: 532.0, 636669: 2258.0}
+SECONDS_PER_MILLION_READ = 2789.0  # the slope through those two
+SCREENING_SECONDS = 482.0          # the intercept: what does not scale
+TRIAL_LIBRARY = ("the -P slice", 17775)
+
+
+def expected_minutes(rows):
+    """Roughly how long a run on this many molecules takes."""
+    if not rows:
+        return None
+    return (SCREENING_SECONDS + SECONDS_PER_MILLION_READ * rows / 1e6) / 60
+
+
+def cost_warning(rows, library_phrase_text=None):
+    """What the run will cost, said before it is paid.
+
+    THE TOOL KNEW THIS AND DID NOT SAY IT
+    --------------------------------------------------------------------
+    A request against the -O slice takes about forty minutes and the answer
+    is often that the specification is feasible with room to spare -- which
+    the -P slice, 36 times smaller, would have shown in a few minutes.
+    docs/prompt_format.md says to try the small slice first. The run says
+    nothing, and a person at a prompt reads the run.
+    """
+    minutes = expected_minutes(rows)
+    if minutes is None or minutes < 10:
+        return []
+    name, trial_rows = TRIAL_LIBRARY
+    trial = expected_minutes(trial_rows)
+    out = wrap(f"this reads {rows:,} molecules and takes about "
+               f"{minutes:.0f} minutes.", indent=2, hanging=4)
+    if rows > trial_rows * 2:
+        out += wrap(f"{name} holds {trial_rows:,} of the same chemistry and "
+                    f"answers in about {trial:.0f}. Where a request is near "
+                    f"the boundary, that is where the boundary shows: a "
+                    f"deliverable the small slice cannot reach is one this "
+                    f"will not reach either, for the same reason and "
+                    f"{minutes - trial:.0f} minutes sooner.",
+                    indent=4, hanging=6)
     return out

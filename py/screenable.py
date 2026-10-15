@@ -61,7 +61,7 @@ import render as render_mod  # noqa: E402
 import smiles as smiles_mod  # noqa: E402
 from m3_order import sh, stats_from, write_parts  # noqa: E402
 
-from rdkit import DataStructs, RDLogger  # noqa: E402
+from rdkit import Chem, DataStructs, RDLogger  # noqa: E402
 from rdkit.Chem import rdFingerprintGenerator  # noqa: E402
 
 RDLogger.DisableLog("rdApp.*")
@@ -225,6 +225,11 @@ SAMPLE_SEED = 0
 # unexamined rather than cleared.
 SECONDS_PER_MOLECULE = None  # not measurable from 200 to 13,946; see above
 RANKING_FIXED_SECONDS = 240.0  # mean of the warm points, all counts
+# How many alternatives the ranking cost is quoted for. propose.FRONTIER is
+# the same number and is not imported: screenable does not otherwise depend
+# on the proposer, and a figure in a sentence should not create a dependency.
+# tests/test_contraindications.py checks the two have not drifted apart.
+FRONTIER_FOR_COST = 8
 RANKING_TIMED_SECONDS = {200: [221.89, 220.56, 196.36], 600: [254.78],
                          1200: [262.03], 1820: [242.92, 236.77],
                          13946: [248.06]}
@@ -493,7 +498,7 @@ def rankability(survivors, features, epochs=10, learning_rate=0.5,
 
     if verdict == "not_settled_at_this_sample":
         means = render_mod.cannot_say(
-            "whether the model can order this set",
+            "whether a top N can be drawn from this set",
             f"{distinct:.1%} of scores are distinct, which clears the "
             f"{MIN_DISTINCT_SHARE:.0%} floor, but it was measured on "
             f"{len(logits):,} of {total:,} survivors and this share falls as "
@@ -503,15 +508,39 @@ def rankability(survivors, features, epochs=10, learning_rate=0.5,
             f"the floor is not cleared by anything measured here. Measuring "
             f"all {total:,} would settle it")
     elif verdict == "answerable":
-        means = [f"the model can order this set: {distinct:.1%} of scores are "
-                 f"distinct against a {MIN_DISTINCT_SHARE:.0%} floor declared "
-                 f"before the run, measured on all {total:,} survivors"]
+        means = [f"a top N can be drawn from this set: {distinct:.1%} of "
+                 f"scores are distinct against a {MIN_DISTINCT_SHARE:.0%} "
+                 f"floor declared before the run, measured on all {total:,} "
+                 f"survivors, so the order is the score's rather than the "
+                 f"tie-break's"]
     else:
-        means = [f"the model cannot order this set: {distinct:.1%} of scores "
-                 f"are distinct against a {MIN_DISTINCT_SHARE:.0%} floor "
-                 f"declared before the run, measured on {len(logits):,} "
-                 f"molecules. A top N drawn from it would be settled by the "
-                 f"tie-break, not by the model."]
+        # WHAT THIS SENTENCE USED TO CLAIM, AND WHY IT WAS WRONG
+        #
+        # It said "the model cannot order this set", which names the model as
+        # the limit. The score is a sum of the weights of the bits that are
+        # on, so two molecules with the same fingerprint get the same score
+        # exactly -- the distinct-score count IS the distinct-fingerprint
+        # count, measured at 846 and 846 on one survivor set. The figure was
+        # never about the model's resolution, and on the library measured
+        # here it was not about the set's diversity either: every tied group
+        # was a set of stereoisomers that the fingerprint does not look at.
+        #
+        # So the verdict stands -- a top N really would be settled by
+        # whatever breaks the tie -- and the sentence says what was measured
+        # rather than whose fault it is. The diagnosis under "what to measure"
+        # names the cause for this particular set, because that is a
+        # measurement and belongs where measurements go.
+        means = [f"a top N cannot be drawn from this set: {distinct:.1%} of "
+                 f"scores are distinct against a {MIN_DISTINCT_SHARE:.0%} "
+                 f"floor declared before the run, measured on "
+                 f"{len(logits):,} molecules, so whatever breaks the tie "
+                 f"would be choosing them rather than the score.",
+                 f"this counts molecules that score the same, which is not "
+                 f"the same as molecules the model cannot tell apart: the "
+                 f"score is a sum over the fingerprint bits, so anything the "
+                 f"fingerprint maps to one pattern scores identically "
+                 f"whatever the model has learned. What is tied here is "
+                 f"measured under 'what to measure'."]
 
     out = {
         "verdict": verdict,
@@ -527,6 +556,38 @@ def rankability(survivors, features, epochs=10, learning_rate=0.5,
         "ceiling_single_value": MAX_TIE_SHARE,
         "logit_range": [round(min(logits), 4), round(max(logits), 4)],
         "fitted_on": str(features),
+        # HOW FAR SHORT, IN THE UNIT THE READER ACTS IN
+        #
+        # "40.5% against a 50% floor" and "49,005 more distinct scores" are
+        # the same fact, and only the second says how big the gap is. On the
+        # -P slice the same two percentages are 64 scores out of 1,820, which
+        # is close; on -O they are 49,005 out of 518,027, which is not. The
+        # percentage hides which of those a reader is looking at. Same reason
+        # the nearest miss reports "six short" rather than a ratio.
+        "short_by": max(0, int(round(
+            (MIN_DISTINCT_SHARE - distinct) * len(logits)))),
+        # WHAT SHAPE THE TIES ARE, BECAUSE THE TWO SHAPES NEED OPPOSITE FIXES
+        #
+        # A share of distinct scores says nothing about how the duplicates
+        # are arranged. The largest group of molecules sharing one score
+        # tells them apart: a handful is a resolution problem, where many
+        # small collisions come from scores not being fine-grained enough;
+        # most of the set on one value is a degenerate class, where the model
+        # is not distinguishing the molecules at all. The first is answered
+        # by how scores are produced and the second by data. Measured, not
+        # classified -- naming a threshold between them would be inventing
+        # one.
+        "largest_tie": {
+            "molecules": top_count,
+            "share_of_set": round(top_count / len(logits), 6),
+            "reads_as": "a handful of molecules on the most common score is "
+                        "many small collisions: the scores are not fine "
+                        "enough to separate neighbours. Most of the set on "
+                        "one score would be the opposite -- the model not "
+                        "distinguishing them at all -- and would be answered "
+                        "by different data rather than by a different "
+                        "specification",
+        },
         # The numbers are in the sentence whichever way the verdict went. A
         # passing verdict used to say only "the model can order this set",
         # which is the one a reader cannot check: 50.3% and 71% are not the
@@ -798,22 +859,56 @@ def report(survivors, features=WORK / "imi_fp" / "features.parquet",
                                "is data rather than a setting.",
         }
     if rank["verdict"] == "not_answerable":
+        # Only on a failed ordering, like eliminating_conditions() on a zero:
+        # there is no answer competing for the time, and the one thing a
+        # reader wants is what would change it.
+        tie_diagnosis = why_the_scores_tie(survivors)
         revisions["ranking"] = {
-            "problem": f"only {rank.get('distinct_share', 0):.1%} of scores are "
-                       f"distinct against a {MIN_DISTINCT_SHARE:.0%} floor",
+            "problem": f"only {rank.get('distinct_share', 0):.1%} of scores "
+                       f"are distinct against a {MIN_DISTINCT_SHARE:.0%} "
+                       f"floor, so a top N would be the tie-break's",
             # Named a function, which is a line of this codebase and not an
             # answer. A reader deciding what to do next needs the action, not
             # the call that performs it.
-            "measured_alternatives": "a looser specification spreads the "
-                                     "scores further, so one of the "
-                                     "alternatives on the frontier may clear "
-                                     "the floor. Which of them does is "
-                                     "measurable and has not been measured "
-                                     "here",
+            # WHAT TO MEASURE, WITH WHAT IT COSTS
+            #
+            # The applicability verdict has carried a count since it was
+            # written -- "3,992 compounds measured, 1,003 of them for half
+            # the set" -- and this one carried "measurable, and has not been
+            # measured here", which is a sentence rather than a step. The gap
+            # was invisible while both were prose; it shows the moment the
+            # two are put side by side.
+            #
+            # The cost is known: the ranking measurement does not depend on
+            # how many survivors it reads (70x the molecules for the same
+            # wall clock), so each further specification is one fixed cost.
+            # WITHDRAWN: "a looser specification may clear the floor"
+            #
+            # That was the revision here from the day it was written, and it
+            # was never measured. It is wrong: the score is a sum of the
+            # weights of the bits that are on, so molecules sharing a
+            # fingerprint share a score under every specification. Measured,
+            # the distinct-score count and the distinct-fingerprint count are
+            # the same number.
+            #
+            # A cost was briefly quoted for measuring the frontier's
+            # alternatives -- about 32 minutes -- which would have bought
+            # eight runs of an answer already known. The diagnosis below
+            # takes two seconds and says what is actually tied.
+            "measured_alternatives": tie_diagnosis,
+            "short_by": (
+                f"{rank.get('short_by', 0):,} more distinct scores would "
+                f"reach the floor, out of {rank.get('sampled', 0):,} "
+                f"measured. The percentage alone does not say whether that "
+                f"is a near miss or a different order of magnitude"),
+            # The last line of the block named the model again, directly
+            # under a measurement showing the model is not what is being
+            # measured. A reader takes the closing sentence with them.
             "what_this_means": "the set can still be screened; what cannot be "
                                "done is to take the top N from it, because "
-                               "the tie-break rather than the model would "
-                               "choose them",
+                               "the molecules at the top share a score and "
+                               "something other than the score would be "
+                               "picking between them",
         }
     # A verdict the sample could not reach has a revision too, and it is the
     # cheapest one in here: measure the rest of the set. Leaving it out would
@@ -1017,6 +1112,9 @@ def show(body, cost=None):
                         for line in render_mod.wrap(row["caveat"], indent=6,
                                                     hanging=8):
                             print(line)
+            elif isinstance(alternatives, dict) and "ruled_out" in alternatives:
+                for line in render_mod.tie_diagnosis_lines(alternatives):
+                    print(line)
             elif alternatives:
                 for line in render_mod.wrap(str(alternatives), indent=4,
                                             hanging=6):
@@ -1071,3 +1169,123 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# How many molecules the tie diagnosis reads. It fingerprints the set several
+# ways, which costs a pass each, and it runs only on a verdict that already
+# failed -- there is no answer competing for the time. Above this it says what
+# it measured on, the way every other sampled figure here does.
+TIE_DIAGNOSIS_CAP = 50000
+
+
+def why_the_scores_tie(survivors, size=TIE_DIAGNOSIS_CAP):
+    """When the ordering fails, what is actually tied, and what would separate it.
+
+    THE VERDICT HAD A NEXT STEP THAT DOES NOT WORK
+    --------------------------------------------------------------------
+    "A looser specification spreads the scores further, so one of the
+    alternatives on the frontier may clear the floor" was written as the
+    revision for an unrankable set, and was never measured. It is wrong.
+
+    The engine's features are fingerprint bits and its score is a sum of the
+    weights of the bits that are on, so two molecules with the same
+    fingerprint get the same score exactly. Measured on one survivor set:
+    846 distinct fingerprints and 846 distinct scores from the same
+    survivors. The tie rate IS the fingerprint collision rate, and no
+    specification changes what a fingerprint sees.
+
+    Nor does a bigger fingerprint. Radius 2, 3 and 4 against 2,048, 4,096 and
+    8,192 bits all gave 846: it is not hash crowding. The duplicate groups
+    are stereoisomers -- every one of 1,551 molecules in 577 groups collapses
+    to a single structure when the stereochemistry is dropped, because ZINC
+    carries isomers as separate entries and a Morgan fingerprint does not
+    look at them by default. Counting chirality separated all but four.
+
+    So this measures the same four things per run rather than quoting those,
+    and reports a revision that was checked instead of one that sounded
+    plausible.
+    """
+    chosen, total = sample_survivors(survivors, size)
+    mols = [m for m in (smiles_mod.parse(s) for s in chosen) if m is not None]
+    if not mols:
+        return None
+
+    def distinct(radius, bits, chirality=False):
+        gen = rdFingerprintGenerator.GetMorganGenerator(
+            radius=radius, fpSize=bits, includeChirality=chirality)
+        return len({gen.GetFingerprint(m).ToBitString() for m in mols})
+
+    produced = distinct(fingerprints_mod.FP_RADIUS, fingerprints_mod.FP_BITS)
+    wider = {f"radius {r}, {b:,} bits": distinct(r, b)
+             for r, b in ((fingerprints_mod.FP_RADIUS, fingerprints_mod.FP_BITS * 4),
+                          (fingerprints_mod.FP_RADIUS + 1, fingerprints_mod.FP_BITS))}
+    with_chirality = distinct(fingerprints_mod.FP_RADIUS,
+                              fingerprints_mod.FP_BITS, chirality=True)
+
+    # What the duplicate groups are. Dropping stereochemistry and seeing a
+    # group collapse to one structure is the measurement; "they look like
+    # isomers" is not.
+    gen = rdFingerprintGenerator.GetMorganGenerator(
+        radius=fingerprints_mod.FP_RADIUS, fpSize=fingerprints_mod.FP_BITS)
+    groups = {}
+    for mol in mols:
+        groups.setdefault(gen.GetFingerprint(mol).ToBitString(), []).append(mol)
+    duplicated = [g for g in groups.values() if len(g) > 1]
+    stereo_only = sum(
+        1 for g in duplicated
+        if len({Chem.MolToSmiles(m, isomericSmiles=False) for m in g}) == 1)
+
+    return {
+        "measured_on": len(mols),
+        "of_survivors": total,
+        "distinct_fingerprints": produced,
+        "distinct_share": round(produced / len(mols), 4),
+        # Measured both ways: on 1,820 survivors the two counts were equal
+        # (846 and 846); on 518,027 the fingerprints came to 210,526 and the
+        # scores to 210,007. The relation is one-sided, and the larger set is
+        # where that shows -- different fingerprints can land on the same
+        # weighted sum by coincidence, and at half a million molecules some
+        # do. Saying "equals" would have been right once and wrong once.
+        "why_this_bounds_the_score_count":
+            "the score is a sum of the weights of the bits that are on, so "
+            "two molecules with the same fingerprint get the same score "
+            "exactly. The distinct scores cannot outnumber the distinct "
+            "fingerprints, and may fall below them where different "
+            "fingerprints happen to sum alike",
+        "ruled_out": {
+            "a bigger fingerprint": wider,
+            "reads_as": "the same count at a larger radius or more bits means "
+                        "the collisions are not hash crowding: the molecules "
+                        "are identical to what a fingerprint looks at",
+        },
+        "what_the_duplicates_are": {
+            "groups": len(duplicated),
+            "molecules": sum(len(g) for g in duplicated),
+            "groups_that_are_stereoisomers_only": stereo_only,
+            "largest_group": max((len(g) for g in duplicated), default=0),
+            "reads_as": "a group that collapses to one structure when "
+                        "stereochemistry is dropped is a set of isomers the "
+                        "library carries separately and the fingerprint does "
+                        "not distinguish",
+        },
+        "what_would_separate_them": {
+            "counting chirality": with_chirality,
+            "share": round(with_chirality / len(mols), 4),
+            "clears_the_floor": with_chirality / len(mols) >= MIN_DISTINCT_SHARE,
+            "what_it_would_take": "the activity model is fitted on "
+                                  "fingerprints that ignore chirality, so "
+                                  "scoring with one that does not would score "
+                                  "in a space the model never saw. It is a "
+                                  "refit, not a flag",
+            "and_it_is_a_chemical_decision": "whether two stereoisomers should "
+                                             "be ranked apart depends on the "
+                                             "target, which this tool does not "
+                                             "know. That the library lists "
+                                             "them separately is not the same "
+                                             "question",
+        },
+        "what_does_not_help": "a looser specification. Every specification "
+                              "selects from the same molecules, and the ones "
+                              "sharing a fingerprint share it under all of "
+                              "them",
+    }

@@ -58,9 +58,34 @@ from rdkit.Chem.Scaffolds import MurckoScaffold  # noqa: E402
 RDLogger.DisableLog("rdApp.*")
 
 WORK = ROOT / "data" / "work"
-# HyperLogLog's standard error at 2^12 registers, measured in this repository
-# at 0.29% to 1.24% over four cardinalities. Three standard errors is the band
-# within which the estimate is not allowed to decide.
+# HyperLogLog's standard error at 2^12 registers: 1.04 / sqrt(4096) = 1.63%,
+# which is the textbook figure and is where 0.016 comes from. Three standard
+# errors is the band within which the estimate is not allowed to decide.
+#
+# WITHDRAWN: "measured in this repository at 0.29% to 1.24% over four
+# cardinalities". No such measurement exists. The 0.29% it cited is a memory
+# figure from a different table -- 36,224 KiB against 36,328 -- and the
+# constant was always the theoretical value. A derived number wearing the
+# word "measured" is the fault contraindication 102 is about, found twice in
+# one day.
+#
+# Measured now, 30 seeds per cardinality against exact counts:
+#
+#     n          median   p95     max     over the 4.8% band
+#     100        0.81%    1.83%   1.83%   0/30
+#     686        0.78%    2.17%   2.31%   0/30
+#     2,000      0.84%    2.10%   2.30%   0/30
+#     10,000     2.72%    5.02%   5.87%   2/30
+#     50,000     1.13%    3.64%   3.64%   0/30
+#     200,000    1.39%    3.92%   4.05%   0/30
+#
+# The band holds at every cardinality but one. Around 10,000 the error roughly
+# triples and crosses it twice in thirty draws, which is 2.5 x 4,096 -- where
+# HyperLogLog leaves its small-cardinality correction. That is a property of
+# the estimator at this register count, not of a bad draw, and the exact pass
+# is what the band exists to trigger: a row near the requirement is counted
+# rather than trusted. A request landing near 10,000 scaffolds is the case to
+# watch, and it is recorded here rather than left for the next person to find.
 SKETCH_RELATIVE_ERROR = 0.016
 UNCERTAIN_BAND = 3 * SKETCH_RELATIVE_ERROR
 # How many specifications the frontier shows, and so how many get an exact
@@ -117,7 +142,7 @@ def classify(spec, required, baseline):
 # The sweep reads the library once and evaluates every specification against
 # each molecule. The exact pass threw that structure away and re-read. The
 # scaffold is also computed once per molecule now instead of once per
-# specification, which was the larger waste: MurckoScaffoldSmiles was 27.6%
+# specification, which was the larger waste: MurckoScaffoldSmiles was 27.8%
 # of the per-molecule cost when it ran once.
 #
 # WHAT IT COSTS, MEASURED
@@ -171,9 +196,9 @@ def exact_scaffold_counts(part_dir, rows, limit=None):
             weight = Descriptors.MolWt(mol)
             rotatable = rdMolDescriptors.CalcNumRotatableBonds(mol)
             # Computed at most once per molecule, and only once some
-            # specification has kept it. Profiled at 27.6% of the
-            # per-molecule cost, and the old shape paid it once per
-            # specification per molecule.
+            # specification has kept it. It is 27.8% of the per-molecule cost
+            # (profiled in sweep.py, where the table is), and the old shape
+            # paid it once per specification per molecule.
             scaffold = None
             for index, (choices, variant) in enumerate(zip(batch, variants)):
                 if weight >= variant.mw_limit or rotatable > variant.rot_limit:
