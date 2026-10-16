@@ -40,6 +40,19 @@
 # To update a base: pull the new tag, read its digest with
 # `podman images --digests`, put it here, rebuild, and record the new size.
 # Updating by deleting the digest is not updating, it is unpinning.
+#
+# WHAT THIS FILE BUILT, SO THE NEXT BUILD HAS SOMETHING TO DIFFER FROM
+#
+#   2026-10-16, from the two digests below, at commit a022276:
+#     image id    sha256:a90a42aee1e9437ee73efa5f6646f11b67753d1b25946778caf064220f28106c
+#     size        633,073,511 bytes (633 MB as podman reports it)
+#
+# Recorded because the layer store is temporary and gets deleted, and the
+# first build's result was not recorded -- which is why "about 560 MB" sat on
+# the README unverifiable, and why the 76 MB it was wrong by could be
+# explained but not proven. A build that comes out at a different id is a
+# different image; one at a different size with these digests unchanged is
+# something to look into.
 FROM docker.io/library/rust:1-slim@sha256:a1084bb57647249d08434a20058831537a49b7af2d109d2925a7a02b4ba6e4dc AS engine
 WORKDIR /build
 COPY engine/ engine/
