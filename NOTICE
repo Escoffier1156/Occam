@@ -1,0 +1,36 @@
+Occam
+Copyright 2026 Shogo Toda
+
+Licensed under the Apache License, Version 2.0 (the "License"); you may not
+use this work except in compliance with the License. You may obtain a copy of
+the License at http://www.apache.org/licenses/LICENSE-2.0
+
+WHY THIS LICENCE
+
+Apache-2.0 carries an explicit patent grant. This project is published rather
+than filed, and the grant is how that decision is stated in a form that binds:
+every contributor licenses their patent claims to every user, and the author
+cannot later use a patent to stop anyone from running this.
+
+The vendored copy of KeepOut under third_party/keepout/ is the same licence
+and the same author, so nothing in this repository is governed by two.
+
+WHAT IS NOT HERE, AND WHY
+
+No dataset is redistributed. data/raw/ holds one manifest per dataset -- its
+source, its licence, the checksums of the files, and what was measured from
+them -- and py/ holds the scripts that fetch them. The terms differ per
+dataset and two of them matter:
+
+  ZINC22 (files.docking.org) permits screening and the sharing of screening
+  results, and requires written permission from John Irwin to redistribute
+  large portions. The tranche this project reads is named in
+  data/raw/zinc22/manifest.json so it can be fetched rather than copied.
+
+  ChEMBL source 40 is CC BY-SA 3.0, whose share-alike would reach anything
+  distributed with it. Nothing here reads it, and it is declared out of the
+  evidence inventory for that reason as well.
+
+The rest -- CHAMP, GramNegAccum, B3DB, IMI-COMBINE -- are CC BY 4.0, CC0 and
+MIT, and are cited in their manifests. Attribution for each is in the
+manifest's own attribution_required field.
