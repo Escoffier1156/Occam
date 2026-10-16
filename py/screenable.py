@@ -663,6 +663,41 @@ def applicability(survivors, training_smiles, size=SAMPLE):
     }
 
 
+# The measured sets a library's structures are compared against. A module
+# constant rather than a literal inside the comparison, because two places ask
+# the same question of it -- which sets to compare, and whether the library
+# named by the request is one of them.
+TRAINING_SETS = {
+    "IMI-COMBINE": ("activity", WORK / "imi_clean.parquet"),
+    "CHAMP": ("permeability", WORK / "champ.parquet"),
+    "GramNegAccum": ("permeability", WORK / "gna.parquet"),
+    # A different barrier, and listed for exactly that reason. If a set is
+    # nearer to the blood-brain barrier data than to anything about
+    # Gram-negatives, that is worth a reader seeing: it says the library
+    # resembles brain-penetrant chemistry, which is not what was asked for.
+    # Naming the barrier beside each row is what makes it readable rather
+    # than a bare distance.
+    "B3DB": ("blood-brain barrier", WORK / "B3DB_classification.parquet"),
+}
+
+
+def is_a_training_set(library):
+    """True when the library a request named is also a comparison set.
+
+    Asked in two places that must agree: nearest_training_set() drops it from
+    its own comparison, and report() adds the sentence explaining the gap.
+    Adding that sentence unconditionally was the mistake -- it reached all
+    five ZINC records, which have no gap to explain, and the field-for-field
+    comparison caught it. The reasoning that said the change could not affect
+    them was about the comparison rows and forgot the string on the same path.
+    """
+    if library is None:
+        return False
+    screened = Path(library).resolve()
+    return any(Path(path).resolve() == screened
+               for _, path in TRAINING_SETS.values())
+
+
 def nearest_training_set(survivors, candidates=None, size=300, library=None):
     """Which of the available training sets is this set actually nearest to?
 
@@ -675,19 +710,7 @@ def nearest_training_set(survivors, candidates=None, size=300, library=None):
     # once from this literal and once from the sentence that states the scope.
     # Two copies of a count drift apart the moment a set is re-ingested. The
     # count below comes from the rows this comparison actually read.
-    candidates = candidates or {
-        "IMI-COMBINE": ("activity", WORK / "imi_clean.parquet"),
-        "CHAMP": ("permeability", WORK / "champ.parquet"),
-        "GramNegAccum": ("permeability", WORK / "gna.parquet"),
-        # A different barrier, and listed for exactly that reason. If a set
-        # is nearer to the blood-brain barrier data than to anything about
-        # Gram-negatives, that is worth a reader seeing: it says the library
-        # resembles brain-penetrant chemistry, which is not what was asked
-        # for. Naming the barrier beside each set is what makes the row
-        # readable rather than a bare distance.
-        "B3DB": ("blood-brain barrier",
-                 WORK / "B3DB_classification.parquet"),
-    }
+    candidates = candidates or TRAINING_SETS
 
     # A SET COMPARED WITH ITSELF ANSWERS NOTHING
     #
@@ -874,14 +897,19 @@ def report(survivors, features=WORK / "imi_fp" / "features.parquet",
             "problem": "the set sits outside the structures the model was fitted on",
             "measured_alternatives": nearest_training_set(survivors,
                                                           library=library),
-            "what_this_means": "the training set listed first is the one this "
-                               "library is actually nearest to. If none reaches "
-                               "the threshold, no model fitted on what is here "
-                               "can speak about this library, and the revision "
-                               "is data rather than a setting. The library "
-                               "being screened is left out of this comparison "
-                               "when it is one of these sets: comparing it "
-                               "with itself returns 1.000 and says nothing.",
+            # The clause about the exclusion is added only when there was
+            # one. Said unconditionally it reached five records that have
+            # nothing excluded, which is a line explaining a thing that did
+            # not happen -- and the field-for-field comparison failed on it.
+            "what_this_means": (
+                "the training set listed first is the one this library is "
+                "actually nearest to. If none reaches the threshold, no model "
+                "fitted on what is here can speak about this library, and the "
+                "revision is data rather than a setting."
+                + (" The library being screened is one of these sets and is "
+                   "left out of the comparison: measured against itself it "
+                   "returns 1.000 at 100%, which sorts first and says "
+                   "nothing." if is_a_training_set(library) else "")),
         }
     if rank["verdict"] == "not_answerable":
         # Only on a failed ordering, like eliminating_conditions() on a zero:
