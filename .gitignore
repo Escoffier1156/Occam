@@ -39,3 +39,4 @@ __pycache__/
 # look -- hence this line rather than another round of deleting them.
 docs/pdf/*.html
 docs/pdf/*.pdf
+VERSION

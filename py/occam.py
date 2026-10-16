@@ -527,10 +527,28 @@ def show(spec, notes, library_info=None, declared_phrase=None):
     width = 20
     # Q: a result handed to someone else has to say which version produced it.
     # The charge knob was retired two days before this was first shown outside.
-    stamp = subprocess.run(["git", "-C", str(ROOT), "describe", "--always",
-                            "--dirty", "--abbrev=10"],
-                           capture_output=True, text=True)
-    version = stamp.stdout.strip() or "not a git checkout"
+    #
+    # Two ways it can be absent, and neither may stop a run. A checkout with
+    # no history gives an empty answer, which was already handled. A machine
+    # with no git raises, which was not: the container has no .git and no git
+    # binary, so the one line asserting provenance crashed the tool in the
+    # channel built for handing results to other people.
+    #
+    # VERSION is written at image build time from the same `git describe`,
+    # because an image carries no history to ask.
+    version = None
+    stamped = ROOT / "VERSION"
+    if stamped.exists():
+        version = stamped.read_text().strip() or None
+    if not version:
+        try:
+            stamp = subprocess.run(
+                ["git", "-C", str(ROOT), "describe", "--always", "--dirty",
+                 "--abbrev=10"], capture_output=True, text=True)
+            version = stamp.stdout.strip() or None
+        except (OSError, subprocess.SubprocessError):
+            version = None
+    version = version or "version not recorded"
     print(f"occam {version} at "
           f"{datetime.datetime.now().astimezone().isoformat(timespec='seconds')}")
     print("read as:")

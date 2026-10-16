@@ -1,0 +1,23 @@
+# Everything under data/work/ except the five the image ships; the Dockerfile
+# names those explicitly. The rest is 2.8 GB of derived artefacts and test
+# scaffolding, and the ZINC slices, which the image must not carry.
+data/work/*
+!data/work/champ.parquet
+!data/work/gna.parquet
+!data/work/imi_clean.parquet
+!data/work/B3DB_classification.parquet
+!data/work/imi_fp
+data/raw/*.tsv
+data/raw/*.csv
+data/raw/champ/*.xlsx
+data/raw/gramnegaccum/*.csv
+data/raw/imi_combine/data
+data/raw/imi_combine/figures
+data/raw/chembl_src40
+engine/target
+engine/target-lin
+engine/target-fp
+.git
+.hypothesis
+docs/pdf/*.html
+docs/pdf/*.pdf

@@ -394,6 +394,41 @@ def inert_lines(inert):
     return out
 
 
+def settle_line(step):
+    """The ANSWER block's one line for what would settle the ordering verdict.
+
+    `measured_alternatives` carries three shapes: a sentence, for the
+    revisions whose next step is one sentence; a list of training-set rows;
+    and the tie diagnosis as a dict. The detail printer in py/screenable.py
+    dispatches on all three. This block was written against the sentence
+    alone and formatted whatever arrived with an f-string, so for the verdict
+    that is reached most often -- the scores tie -- the ANSWER a reader stops
+    at ended in a repr of fifteen keys, three of them paragraphs. Found by
+    reading the example output quoted in README.md.
+
+    Returns None where there is no one-line form. The list is the four-row
+    training-set comparison, whose content is the ordering of the rows, and a
+    block that cannot be said in a line is better left to the block that says
+    it.
+    """
+    alternatives = step.get("measured_alternatives")
+    if isinstance(alternatives, str):
+        return alternatives
+    if not isinstance(alternatives, dict):
+        return None
+    separate = alternatives.get("what_would_separate_them") or {}
+    counted = separate.get("counting chirality")
+    if counted is None:
+        return None
+    reach = ("which clears the floor" if separate.get("clears_the_floor")
+             else "which still does not reach the floor")
+    return (f"counting chirality gives {counted:,} distinct of "
+            f"{alternatives.get('measured_on', 0):,} "
+            f"({separate.get('share', 0):.1%}), {reach}. The activity model "
+            f"is fitted on fingerprints that ignore chirality, so that is a "
+            f"refit, not a flag")
+
+
 def answer(spec, result, body=None, cost=None, library=None):
     """The whole answer, in one block, at the end.
 
@@ -474,9 +509,9 @@ def answer(spec, result, body=None, cost=None, library=None):
                         f"{rank.get('sampled', 0):,}",
                         indent=4, hanging=6)
         step = ((body.get("suggested_revisions") or {}).get("ranking") or {})
-        if step.get("measured_alternatives"):
-            out += wrap(f"to settle it: {step['measured_alternatives']}",
-                        indent=4, hanging=6)
+        settle = settle_line(step)
+        if settle:
+            out += wrap(f"to settle it: {settle}", indent=4, hanging=6)
         out.append(f"  its activity could be predicted: "
                    f"{verdict(app.get('verdict'))}")
         control = (app.get("control") or {}).get("verdict")
