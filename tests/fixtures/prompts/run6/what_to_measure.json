@@ -19,6 +19,10 @@
   "covered_at": 0.4,
   "threshold_source": "the applicability threshold py/screenable.py uses; nearest-neighbour Tanimoto cut-offs of 0.4 to 0.6 are common practice and 0.4 is the lenient end",
   "compounds_to_measure": 318,
+  "counted_on": 1820,
+  "of_survivors": 1820,
+  "is_a_floor": false,
+  "why_a_floor": null,
   "neighbourhood_sizes": {
     "largest": 46,
     "median": 4,

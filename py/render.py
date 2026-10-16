@@ -23,6 +23,8 @@ A missing phrase also degrades visibly rather than silently -- the identifier
 is printed as-is, never guessed at from its spelling.
 """
 
+import contextlib
+import io
 import re
 import sys
 import textwrap
@@ -37,6 +39,157 @@ import knobs as knobs_mod  # noqa: E402
 # matter most here are the longest: a caution runs to three lines and a single
 # unwrapped paragraph is the form a reader skips.
 WIDTH = 78
+
+
+# ---------------------------------------------------------------------------
+# THE DISPLAY BOUNDARY
+#
+# Three defects have come out of this layer, which is three more than any
+# other: contraindication E (a sentence template whose slot read as nonsense),
+# G (a universal claim printed beside the max() that contradicted it) and 108
+# (a dict formatted with an f-string, so the ANSWER block ended in a repr of
+# fifteen keys). Three is a layer to defend, not three bugs to fix.
+#
+# WHY A BOUNDARY AND NOT A GOLDEN FILE
+#
+# The obvious answer is to record the rendered text in tests/fixtures and
+# compare. The fixtures hold JSON today precisely because they must: a
+# recorded string has to be updated every time a sentence is improved, and the
+# day the person updating it stops reading what they are replacing, the
+# comparison has stopped being a check. That is the same failure as the
+# assertNotRegex that matched its own removal comment.
+#
+# So this does not detect the known defect. It makes the whole class
+# unreachable: no line can leave this process carrying a Python repr, whatever
+# produced it. 200 print() calls across eight modules are covered by one
+# place, and a new one is covered the day it is written.
+#
+# WHY RAISING IS THE RIGHT ANSWER
+#
+# The same reason a phrase outside the vocabulary stops the run instead of
+# being rounded to the nearest setting. A repr in the output is the renderer
+# saying it did not know how to say something; printing it anyway and letting
+# the reader decide is exactly what this tool exists not to do.
+
+
+class Unrenderable(Exception):
+    """A line of output carries a Python repr where a sentence belongs."""
+
+
+# Shapes a repr leaves and prose does not. Measured against two full runs
+# captured for README.md: the CHAMP run holds no `{`, `[`, `%s` or quoted key
+# at all, and the only matches in the ZINC run were contraindication 108
+# itself, 12 lines of it.
+#
+# FRAGMENTS MATTER AS MUCH AS WHOLE REPRS. wrap() breaks a long repr across
+# lines, so the line a reader sees may be `'reads_as': 'the same` with no
+# brace anywhere on it. That is why the quoted-key pattern is here and not
+# only `{'`: of the 12 matching lines, 9 carried no brace.
+#
+# Bare `{` is deliberately NOT a shape. The last line of a run prints
+# --out-dir, which is a path the caller chose, and a path may contain braces.
+REPR_SHAPES = (
+    (re.compile(r"\{['\"]"), "a dict"),
+    (re.compile(r"\[\{"), "a list of dicts"),
+    # A QUOTED KEY IS FOLLOWED BY A VALUE; A QUOTED WORD IS FOLLOWED BY PROSE
+    #
+    # This was ['"][^'"]{1,80}['"]: with nothing after it, and the first real
+    # run it saw it stopped. Run 4 of the recorded prompts writes
+    #
+    #     "purchase": it ends in -ase, which is the shape of an enzyme name
+    #
+    # which is the tool quoting the requester's own word and then explaining
+    # it -- good prose, and the pattern read it as a dict key. So the value
+    # has to be part of the shape: a repr puts a quote, a number, a brace or
+    # a Python literal after the colon, and prose puts a lowercase word.
+    (re.compile(r"""['"][^'"\n]{1,80}['"]:\s*(['"]|-?\d|[\[{]|True\b|False\b|None\b)"""),
+     "a dict's quoted key and its value"),
+    (re.compile(r"\[-?\d[\d.,eE+\-]*(,\s*-?[\d.eE+\-]+)*\]"), "a list of numbers"),
+    (re.compile(r" object at 0x"), "an object with no __str__"),
+    (re.compile(r"<(class|function|module|built-in|bound method)[ ']"), "a type or a function"),
+    (re.compile(r"\bdict_(keys|values|items)\("), "a dict view"),
+    (re.compile(r"%(s|r|d|\()"), "an unresolved %-format"),
+)
+
+
+def repr_shape(line):
+    """What repr shape `line` carries, or None. The whole boundary check."""
+    for pattern, what in REPR_SHAPES:
+        found = pattern.search(line)
+        if found:
+            return f"{what}, as {found.group(0)!r}"
+    return None
+
+
+class Boundary(io.TextIOBase):
+    """Stands in for stdout for the length of a run.
+
+    Buffers to a newline because a shape can straddle one write only if
+    something wrote half a line at a time; print() formats the whole line
+    first, so in practice every shape arrives whole. A partial line left at
+    flush() is emitted as it is, without a newline added, so that input()'s
+    prompt still works.
+    """
+
+    def __init__(self, stream):
+        self._stream = stream
+        self._pending = ""
+
+    def write(self, text):
+        self._pending += text
+        while "\n" in self._pending:
+            line, self._pending = self._pending.split("\n", 1)
+            self._check(line)
+            self._stream.write(line + "\n")
+        return len(text)
+
+    def _check(self, line):
+        shape = repr_shape(line)
+        if shape is None:
+            return
+        raise Unrenderable(
+            f"the renderer was about to print {shape}.\n"
+            f"  the line: {line.strip()[:160]}\n"
+            f"  A value reached a sentence with nothing that knows how to "
+            f"say it. Give it a phrase, or leave it to the block that already "
+            f"says it -- both are the right answer for different values, and "
+            f"py/render.py holds one of each. Contraindication 108."
+        )
+
+    def flush(self):
+        if self._pending:
+            line, self._pending = self._pending, ""
+            self._check(line)
+            self._stream.write(line)
+        self._stream.flush()
+
+    def writable(self):
+        return True
+
+    def isatty(self):
+        return self._stream.isatty()
+
+    def fileno(self):
+        return self._stream.fileno()
+
+    @property
+    def encoding(self):
+        return getattr(self._stream, "encoding", "utf-8")
+
+
+@contextlib.contextmanager
+def display_boundary(stream=None):
+    """Installs the boundary over stdout, and takes it down again."""
+    original = sys.stdout
+    guard = Boundary(stream if stream is not None else original)
+    sys.stdout = guard
+    try:
+        yield guard
+    finally:
+        try:
+            guard.flush()
+        finally:
+            sys.stdout = original
 
 
 def wrap(text, indent=0, hanging=None):

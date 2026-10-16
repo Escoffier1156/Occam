@@ -281,7 +281,7 @@ nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_i
 nix-shell --run 'cd engine && cargo test --release -- --test-threads=1'
 ```
 
-214 Python and 11 Rust. The module list is explicit on purpose: `unittest
+228 Python and 11 Rust. The module list is explicit on purpose: `unittest
 discover` once collected nothing here and exited 0, which reads as green.
 
 `OCCAM_PROMPTS=1` adds the slow layer — every recorded prompt run for real,
@@ -292,6 +292,12 @@ a guard that another trips if they overlap.
 Some regions are frozen with [KeepOut](https://github.com/Escoffier1156/KeepOut)
 and will refuse a structural edit. `tests/test_invariants_locked.py` lists
 which ones and why each is frozen.
+
+Output passes a boundary on the way out: a line carrying a Python repr stops
+the run instead of reaching the reader. Three defects came out of the display
+layer before it existed, the last of them a dict formatted into the summary a
+reader stops at. It is in `render.display_boundary()`, and the reasoning for a
+boundary rather than recorded strings to compare against is above it.
 
 ## Licence
 

@@ -391,6 +391,62 @@ class TheSixStillAnswerWhatTheyAnswered(unittest.TestCase):
     def test_the_run_that_stops_still_stops(self):
         self.assertIn("stopping", self.fresh["run2"]["stdout"])
 
+    def test_no_recorded_field_has_appeared_or_changed_type(self):
+        """The fixtures go stale silently, and that is how 108 survived.
+
+        Every other test here names the fields it compares -- rankability's
+        verdict, applicability's verdict, the exact counts. That is the right
+        choice for VALUES, because timings and version stamps move and a test
+        comparing whole transcripts fails on every commit and gets switched
+        off.
+
+        It is the wrong choice for SHAPE. The tie diagnosis was added to
+        suggested_revisions.ranking.measured_alternatives as a dict where a
+        sentence had been, and 23 further fields appeared beside it. Nothing
+        compared that subtree, so the fixtures sat two commits behind the code
+        with every verdict still matching, and the one field whose TYPE had
+        changed was the one the renderer then formatted with an f-string.
+
+        So: the shape is compared and the values are not. A field added or
+        retyped is then a deliberate re-recording with a sentence in the
+        commit, which is what RECORD.md already asks for and had no way to
+        enforce.
+        """
+        def shape(value, path=""):
+            if isinstance(value, dict):
+                out = {}
+                for key, inner in value.items():
+                    out.update(shape(inner, f"{path}.{key}" if path else key))
+                return out
+            # A list's length is a measurement, not a shape: the frontier
+            # holds as many rows as it holds. Its elements' shape is not,
+            # so the first row stands for all of them.
+            if isinstance(value, list):
+                return shape(value[0], f"{path}[]") if value else {path: "list"}
+            return {path: type(value).__name__}
+
+        for name in runs():
+            for stem in ("request", "proposal", "screenable"):
+                was, now = load(name)[stem], self.fresh[name][stem]
+                if was is None or now is None:
+                    self.assertEqual(was is None, now is None, f"{name}.{stem}")
+                    continue
+                sw, sn = shape(was), shape(now)
+                self.assertEqual(
+                    sorted(set(sn) - set(sw)), [],
+                    f"{name}.{stem}: fields the code writes and the fixture "
+                    f"does not have. Re-record, and say in the commit what "
+                    f"they are")
+                self.assertEqual(
+                    sorted(set(sw) - set(sn)), [],
+                    f"{name}.{stem}: fields the fixture has and the code no "
+                    f"longer writes")
+                self.assertEqual(
+                    sorted(k for k in sw if sw[k] != sn[k]), [],
+                    f"{name}.{stem}: fields whose type changed. A field that "
+                    f"changes type changes how it must be printed -- that is "
+                    f"contraindication 108")
+
 
 @unittest.skipUnless(FIXTURES.is_dir(), f"no fixtures at {FIXTURES}")
 class ALibraryHeldInOneFile(unittest.TestCase):

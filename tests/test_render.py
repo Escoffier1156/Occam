@@ -13,6 +13,8 @@ import sys
 import unittest
 from pathlib import Path
 
+from hypothesis import given, settings, strategies as st
+
 ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(ROOT / "py"))
 
@@ -331,3 +333,152 @@ class TheAnswerBlockCarriesTheWholeAnswer(unittest.TestCase):
                                              "survivors": 1, "loosened": {},
                                              "choices": {}}})
         self.assertIn("No molecules are emitted", text)
+
+
+class TheDisplayBoundary(unittest.TestCase):
+    """No line leaves this process carrying a Python repr.
+
+    Three defects have come out of the display layer -- contraindication E (a
+    sentence template whose slot read as nonsense), G (a universal claim
+    printed beside the max() that contradicted it) and 108 (a dict formatted
+    with an f-string). These tests hold the boundary that makes the third
+    class unreachable rather than detectable; see
+    render.display_boundary() for why it is not a recorded string to compare
+    against.
+    """
+
+    def test_rejects_a_whole_dict(self):
+        self.assertIsNotNone(
+            render_mod.repr_shape("to settle it: {'measured_on': 1820}"))
+
+    def test_rejects_a_fragment_with_no_brace_on_it(self):
+        # wrap() breaks a long repr across lines. Of the 12 lines
+        # contraindication 108 put on the screen, 9 carried no brace at all,
+        # so a check for `{'` alone would have passed most of the damage.
+        self.assertIsNotNone(
+            render_mod.repr_shape("      'reads_as': 'the same count at a"))
+
+    def test_rejects_a_list_of_numbers(self):
+        self.assertIsNotNone(
+            render_mod.repr_shape("  timed at [221.89, 220.56, 196.36] seconds"))
+
+    def test_rejects_an_object_with_no_str(self):
+        self.assertIsNotNone(
+            render_mod.repr_shape("  library: <knobs.Registry object at 0x7f1>"))
+
+    def test_rejects_an_unresolved_percent_format(self):
+        self.assertIsNotNone(render_mod.repr_shape("  %s distinct scaffolds"))
+
+    def test_passes_the_sentences_the_tool_actually_writes(self):
+        for line in (
+            "  radius 4, 8,192 bits: 846 distinct -- unchanged",
+            "  ionisable nitrogen   an unhindered primary amine   keeps 0 of 1,132 (0.0%)",
+            "  median 0.217, best 0.371, threshold 0.4",
+            "      94.0% at or above the threshold, so the measurement can clear it",
+            "  the count is a property of the threshold: 0.30: 196, 0.40: 318",
+        ):
+            self.assertIsNone(render_mod.repr_shape(line), line)
+
+    def test_a_chosen_out_dir_may_contain_braces(self):
+        # The last line of a run prints --out-dir, which is the caller's path.
+        # Bare `{` is deliberately not a repr shape for this reason.
+        self.assertIsNone(
+            render_mod.repr_shape("-> /tmp/out-{weird}/request.json, sweep.json"))
+
+    def test_the_boundary_raises_rather_than_printing(self):
+        import io as io_mod
+        sink = io_mod.StringIO()
+        with self.assertRaises(render_mod.Unrenderable):
+            with render_mod.display_boundary(sink):
+                print("ordinary prose, 846 distinct of 1,820")
+                print({"measured_on": 1820, "distinct_fingerprints": 846})
+        self.assertIn("846 distinct of 1,820", sink.getvalue())
+        self.assertNotIn("measured_on", sink.getvalue(),
+                         "the offending line reached the reader anyway")
+
+    def test_the_boundary_is_transparent_to_ordinary_output(self):
+        import io as io_mod
+        sink = io_mod.StringIO()
+        with render_mod.display_boundary(sink):
+            for line in render_mod.wrap("846 distinct fingerprints among "
+                                        "1,820 molecules (46.5%)", indent=4):
+                print(line)
+        self.assertEqual(sink.getvalue(),
+                         "    846 distinct fingerprints among 1,820 molecules (46.5%)\n")
+
+    def test_a_partial_line_is_checked_at_flush(self):
+        # input()'s prompt is written without a newline, so flush() emits a
+        # partial line. It must still pass the boundary, and must not have a
+        # newline added to it.
+        import io as io_mod
+        sink = io_mod.StringIO()
+        with render_mod.display_boundary(sink):
+            sys.stdout.write("> ")
+        self.assertEqual(sink.getvalue(), "> ")
+
+        sink = io_mod.StringIO()
+        with self.assertRaises(render_mod.Unrenderable):
+            with render_mod.display_boundary(sink):
+                sys.stdout.write("{'groups': 577")
+
+    def test_stdout_is_restored_even_when_the_boundary_fires(self):
+        import io as io_mod
+        original = sys.stdout
+        with self.assertRaises(render_mod.Unrenderable):
+            with render_mod.display_boundary(io_mod.StringIO()):
+                print({"a": 1})
+        self.assertIs(sys.stdout, original)
+
+    @settings(max_examples=300, deadline=None, database=None)
+    @given(value=st.one_of(
+        st.dictionaries(st.text(min_size=1, max_size=12), st.integers(), min_size=1),
+        st.lists(st.integers(), min_size=1),
+        st.lists(st.floats(allow_nan=False, allow_infinity=False), min_size=2),
+    ))
+    def test_no_container_can_be_interpolated(self, value):
+        """The property, not the instance: a container cannot reach the reader.
+
+        This is what makes the class unreachable rather than caught. A
+        detection test fixes the dict that was found; this one says that any
+        dict or list dropped into an f-string stops the run.
+        """
+        self.assertIsNotNone(render_mod.repr_shape(f"to settle it: {value}"),
+                             f"{value!r} would have printed as a repr")
+
+
+class EveryRenderedLineFromEveryFixture(unittest.TestCase):
+    """The recorded runs, rendered, line by line through the boundary.
+
+    The fixtures hold JSON rather than text on purpose, so this does not
+    compare against a recorded sentence -- it renders what the records say and
+    asserts that no line of it carries a repr. A sentence can be improved
+    without touching anything here, and a value interpolated without a
+    formatter fails whichever run it appears in.
+    """
+
+    FIXTURES = ROOT / "tests" / "fixtures" / "prompts"
+
+    def test_no_rendered_line_carries_a_repr(self):
+        import json
+        rendered = 0
+        for run in sorted(self.FIXTURES.glob("run*")):
+            def load(name):
+                path = run / name
+                return json.loads(path.read_text()) if path.exists() else None
+
+            spec, proposal = load("request.json"), load("proposal.json")
+            if proposal is None:
+                continue  # run2 stops before a proposal exists
+            body, cost = load("screenable.json"), load("what_to_measure.json")
+            lines = list(render_mod.answer(spec, proposal, body=body, cost=cost,
+                                           library=spec.get("library")))
+            if body is not None:
+                lines += list(render_mod.detail(body, cost, proposal))
+            self.assertTrue(lines, f"{run.name} rendered nothing")
+            for line in lines:
+                self.assertIsNone(render_mod.repr_shape(line),
+                                  f"{run.name}: {line}")
+            rendered += len(lines)
+        # Contraindication 102's shape: a loop that found nothing reads green.
+        self.assertGreater(rendered, 200,
+                           "too few lines rendered to have checked anything")

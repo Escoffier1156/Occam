@@ -1145,5 +1145,25 @@ def main():
     return 0
 
 
+def guarded():
+    """main(), with the display boundary standing in for stdout.
+
+    Installed at the entry point rather than inside main() so that it covers
+    every print() on the way out, including the ones in py/screenable.py and
+    py/what_to_measure.py that write their blocks directly. Three defects have
+    come out of the display layer; see render.display_boundary() for why this
+    is a boundary rather than a recorded string to compare against.
+    """
+    try:
+        with render_mod.display_boundary():
+            return main()
+    except render_mod.Unrenderable as err:
+        # STDERR, DELIBERATELY. The boundary stands over stdout, and a
+        # diagnosis must not have to pass the check it is reporting -- the
+        # message quotes the offending line, so it would stop itself.
+        print(f"\nstopping: {err}", file=sys.stderr)
+        return 3
+
+
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(guarded())

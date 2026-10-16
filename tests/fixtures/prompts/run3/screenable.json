@@ -19,10 +19,17 @@
       2.9926
     ],
     "fitted_on": "/home/shogo/occam/data/work/imi_fp/features.parquet",
+    "short_by": 38,
+    "largest_tie": {
+      "molecules": 4,
+      "share_of_set": 0.003333,
+      "reads_as": "a handful of molecules on the most common score is many small collisions: the scores are not fine enough to separate neighbours. Most of the set on one score would be the opposite -- the model not distinguishing them at all -- and would be answered by different data rather than by a different specification"
+    },
     "not_comparable": "this share moves with the number measured, so it does not compare with another specification's unless both were measured on the same count",
-    "means": "the model cannot order this set: 46.8% of scores are distinct against a 50% floor declared before the run, measured on 1,200 molecules. A top N drawn from it would be settled by the tie-break, not by the model.",
+    "means": "a top N cannot be drawn from this set: 46.8% of scores are distinct against a 50% floor declared before the run, measured on 1,200 molecules, so whatever breaks the tie would be choosing them rather than the score. this counts molecules that score the same, which is not the same as molecules the model cannot tell apart: the score is a sum over the fingerprint bits, so anything the fingerprint maps to one pattern scores identically whatever the model has learned. What is tied here is measured under 'what to measure'.",
     "means_lines": [
-      "the model cannot order this set: 46.8% of scores are distinct against a 50% floor declared before the run, measured on 1,200 molecules. A top N drawn from it would be settled by the tie-break, not by the model."
+      "a top N cannot be drawn from this set: 46.8% of scores are distinct against a 50% floor declared before the run, measured on 1,200 molecules, so whatever breaks the tie would be choosing them rather than the score.",
+      "this counts molecules that score the same, which is not the same as molecules the model cannot tell apart: the score is a sum over the fingerprint bits, so anything the fingerprint maps to one pattern scores identically whatever the model has learned. What is tied here is measured under 'what to measure'."
     ]
   },
   "applicability": {
@@ -110,9 +117,38 @@
       "what_this_means": "the training set listed first is the one this library is actually nearest to. If none reaches the threshold, no model fitted on what is here can speak about this library, and the revision is data rather than a setting."
     },
     "ranking": {
-      "problem": "only 46.8% of scores are distinct against a 50% floor",
-      "measured_alternatives": "a looser specification spreads the scores further, so one of the alternatives on the frontier may clear the floor. Which of them does is measurable and has not been measured here",
-      "what_this_means": "the set can still be screened; what cannot be done is to take the top N from it, because the tie-break rather than the model would choose them"
+      "problem": "only 46.8% of scores are distinct against a 50% floor, so a top N would be the tie-break's",
+      "measured_alternatives": {
+        "measured_on": 1200,
+        "of_survivors": 1200,
+        "distinct_fingerprints": 562,
+        "distinct_share": 0.4683,
+        "why_this_bounds_the_score_count": "the score is a sum of the weights of the bits that are on, so two molecules with the same fingerprint get the same score exactly. The distinct scores cannot outnumber the distinct fingerprints, and may fall below them where different fingerprints happen to sum alike",
+        "ruled_out": {
+          "a bigger fingerprint": {
+            "radius 4, 8,192 bits": 562,
+            "radius 5, 2,048 bits": 562
+          },
+          "reads_as": "the same count at a larger radius or more bits means the collisions are not hash crowding: the molecules are identical to what a fingerprint looks at"
+        },
+        "what_the_duplicates_are": {
+          "groups": 379,
+          "molecules": 1017,
+          "groups_that_are_stereoisomers_only": 379,
+          "largest_group": 4,
+          "reads_as": "a group that collapses to one structure when stereochemistry is dropped is a set of isomers the library carries separately and the fingerprint does not distinguish"
+        },
+        "what_would_separate_them": {
+          "counting chirality": 1197,
+          "share": 0.9975,
+          "clears_the_floor": true,
+          "what_it_would_take": "the activity model is fitted on fingerprints that ignore chirality, so scoring with one that does not would score in a space the model never saw. It is a refit, not a flag",
+          "and_it_is_a_chemical_decision": "whether two stereoisomers should be ranked apart depends on the target, which this tool does not know. That the library lists them separately is not the same question"
+        },
+        "what_does_not_help": "a looser specification. Every specification selects from the same molecules, and the ones sharing a fingerprint share it under all of them"
+      },
+      "short_by": "38 more distinct scores would reach the floor, out of 1,200 measured. The percentage alone does not say whether that is a near miss or a different order of magnitude",
+      "what_this_means": "the set can still be screened; what cannot be done is to take the top N from it, because the molecules at the top share a score and something other than the score would be picking between them"
     }
   },
   "molecules_emitted": false,

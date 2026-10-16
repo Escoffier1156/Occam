@@ -49,17 +49,31 @@ the set was exercising a single-file library.
 
 ## Re-recording
 
-Four at a time, longest first; about twenty minutes.
+Four at a time, longest first; about twenty minutes. The prompt is read out
+of each run's own `request.json`, which is the only copy -- the procedure here
+used to read a `prompts.txt` that is not in this repository, so it had never
+been run as written.
 
 ```bash
 S=/tmp/occam-prompts && mkdir -p $S
 nix-shell --run '
 printf "%s\n" 6 5 4 1 3 7 2 | xargs -P 4 -I{} sh -c "
-  n={}
+  n=\$1
   mkdir -p '$S'/run\$n
-  prompt=\$(sed -n \"\${n}p\" prompts.txt)
+  prompt=\$(python3 -c \"import json;print(json.load(open(\\\"tests/fixtures/prompts/run\$n/request.json\\\"))[\\\"goal\\\"])\")
   python3 -u py/occam.py --yes --out-dir '$S'/run\$n \"\$prompt\" > '$S'/run\$n.log 2>&1
-"'
+" sh {}'
+```
+
+**Diff before copying.** The whole point of the fixtures is that a changed
+answer is visible, and a copy made without reading the difference is the one
+operation that destroys that.
+
+```bash
+for n in 1 2 3 4 5 6 7; do
+  diff <(python3 -m json.tool $S/run$n/screenable.json 2>/dev/null) \
+       <(python3 -m json.tool tests/fixtures/prompts/run$n/screenable.json 2>/dev/null)
+done
 for d in $S/run*; do cp $d/*.json tests/fixtures/prompts/$(basename $d)/; done
 ```
 
