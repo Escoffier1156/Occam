@@ -31,34 +31,138 @@
   },
   "format_note": "The CSVs use CR-only line endings. Convert \\r to \\n before parsing, or csv.DictReader fails.",
   "files": [
-    { "file": "table1.csv", "rows": 12, "sha256": "fb1128bbe3be1a442471d257628d177c23e7848b6d70224d3fe13432357a4a55", "has_smiles": true, "has_accum": true, "accum_class": { "Low": 9, "High": 3 } },
-    { "file": "table2.csv", "rows": 104, "sha256": "4134e54f9e1c0fcbade786143f4e443addd8f3168857b7e3370c1e9742290954", "has_smiles": true, "has_accum": true, "accum_class": { "High": 12, "Low": 88 } },
-    { "file": "table3.csv", "rows": 56, "sha256": "37738f2e5a3d8a7757d7c5f3950b3511c344b503271b3f5df20b75c01bfcd18f", "has_smiles": true, "has_accum": true, "accum_class": { "High": 16, "Low": 38 } },
-    { "file": "table4.csv", "rows": 68, "sha256": "ec082ed2af44c051c23bb3af0de71897a5c0d4149c27b926b8f76e8232a5bead", "has_smiles": "as 'mol' column", "has_accum": true, "accum_class": { "High": 36, "Low": 32 }, "note": "The n=68 training set behind the eNTRy rules, with 304 MOE descriptors." },
-    { "file": "table5.csv", "rows": 79, "sha256": "d62c611ed9235a92474b9a2fbb7da68be6d0b741d4e13893be31af3273801c03", "has_smiles": true, "has_accum": false },
-    { "file": "table6.csv", "rows": 49, "sha256": "bb3a65af57610fa69428959f6e0e48f6c76d0ff702658c7d72c06bece837f58e", "has_smiles": true, "has_accum": false, "accum_class": { "high": 42, "low": 7 } }
+    {
+      "file": "table1.csv",
+      "rows": 12,
+      "sha256": "fb1128bbe3be1a442471d257628d177c23e7848b6d70224d3fe13432357a4a55",
+      "has_smiles": true,
+      "has_accum": true,
+      "accum_class": {
+        "Low": 9,
+        "High": 3
+      }
+    },
+    {
+      "file": "table2.csv",
+      "rows": 104,
+      "sha256": "4134e54f9e1c0fcbade786143f4e443addd8f3168857b7e3370c1e9742290954",
+      "has_smiles": true,
+      "has_accum": true,
+      "accum_class": {
+        "High": 12,
+        "Low": 88
+      }
+    },
+    {
+      "file": "table3.csv",
+      "rows": 56,
+      "sha256": "37738f2e5a3d8a7757d7c5f3950b3511c344b503271b3f5df20b75c01bfcd18f",
+      "has_smiles": true,
+      "has_accum": true,
+      "accum_class": {
+        "High": 16,
+        "Low": 38
+      }
+    },
+    {
+      "file": "table4.csv",
+      "rows": 68,
+      "sha256": "ec082ed2af44c051c23bb3af0de71897a5c0d4149c27b926b8f76e8232a5bead",
+      "has_smiles": "as 'mol' column",
+      "has_accum": true,
+      "accum_class": {
+        "High": 36,
+        "Low": 32
+      },
+      "note": "The n=68 training set behind the eNTRy rules, with 304 MOE descriptors."
+    },
+    {
+      "file": "table5.csv",
+      "rows": 79,
+      "sha256": "d62c611ed9235a92474b9a2fbb7da68be6d0b741d4e13893be31af3273801c03",
+      "has_smiles": true,
+      "has_accum": false
+    },
+    {
+      "file": "table6.csv",
+      "rows": 49,
+      "sha256": "bb3a65af57610fa69428959f6e0e48f6c76d0ff702658c7d72c06bece837f58e",
+      "has_smiles": true,
+      "has_accum": false,
+      "accum_class": {
+        "high": 42,
+        "low": 7
+      }
+    }
   ],
   "usable_external_set": {
     "unique_smiles_with_numeric_accum": 151,
-    "source_tables": [1, 2, 3],
+    "source_tables": [
+      1,
+      2,
+      3
+    ],
     "duplicates_across_tables": 15,
-    "class_split": { "Low": 129, "High": 22 },
+    "class_split": {
+      "Low": 129,
+      "High": 22
+    },
     "caveat": "Only 151 compounds and 15% positive, against 1132 compounds at a different balance in CHAMP. Report confidence intervals; a single number here is not meaningful."
   },
   "eNTRy_rules": {
-    "conditions": ["ionisable nitrogen (unhindered primary amine best)", "globularity <= 0.25", "rotatable bonds <= 5"],
-    "columns_present": { "globularity": "glob", "rotatable_bonds": "RB", "clogD7.4": "clogD7.4" },
+    "conditions": [
+      "ionisable nitrogen (unhindered primary amine best)",
+      "globularity <= 0.25",
+      "rotatable bonds <= 5"
+    ],
+    "columns_present": {
+      "globularity": "glob",
+      "rotatable_bonds": "RB",
+      "clogD7.4": "clogD7.4"
+    },
     "note": "The published rules report no AUC, so running them on CHAMP under the same split produces a number that does not exist yet."
   },
   "attribution_required": "Richter et al. Nature 2017, DOI 10.1038/nature22308; data via Zenodo 10.5281/zenodo.19798859, CC BY 4.0",
   "evidence": {
-  "in_inventory": true,
-  "artefacts": [
-    "data/work/gna.parquet"
-  ],
-  "why": "the eNTRy rules' own compounds. External validation only, never pooled for training.",
-  "display": "GramNegAccum",
-  "measures": "the eNTRy rules' own compounds",
-  "rows": 197
-}
+    "in_inventory": true,
+    "artefacts": [
+      "data/work/gna.parquet"
+    ],
+    "why": "the eNTRy rules' own compounds. External validation only, never pooled for training.",
+    "display": "GramNegAccum",
+    "measures": "the eNTRy rules' own compounds",
+    "rows": 197
+  },
+  "fetch": {
+    "ref": "v1.0 = fe6336139768",
+    "where": "the Zenodo record is one 83.3 MB zip of this repository at tag v1.0. The four tables are 193 KB of it, so they are fetched from the tag the record archives rather than by downloading the archive. Verified 2026-10-16: all four match the checksums in SHA256SUMS.",
+    "files": [
+      {
+        "url": "https://raw.githubusercontent.com/HergenrotherLab/GramNegAccum/fe6336139768/accum/data/table1.csv",
+        "to": "data/raw/gramnegaccum/table1.csv",
+        "sha256": "fb1128bbe3be1a442471d257628d177c23e7848b6d70224d3fe13432357a4a55"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/HergenrotherLab/GramNegAccum/fe6336139768/accum/data/table2.csv",
+        "to": "data/raw/gramnegaccum/table2.csv",
+        "sha256": "4134e54f9e1c0fcbade786143f4e443addd8f3168857b7e3370c1e9742290954"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/HergenrotherLab/GramNegAccum/fe6336139768/accum/data/table3.csv",
+        "to": "data/raw/gramnegaccum/table3.csv",
+        "sha256": "37738f2e5a3d8a7757d7c5f3950b3511c344b503271b3f5df20b75c01bfcd18f"
+      },
+      {
+        "url": "https://raw.githubusercontent.com/HergenrotherLab/GramNegAccum/fe6336139768/accum/data/table4.csv",
+        "to": "data/raw/gramnegaccum/table4.csv",
+        "sha256": "ec082ed2af44c051c23bb3af0de71897a5c0d4149c27b926b8f76e8232a5bead"
+      }
+    ],
+    "then": [
+      "py/ingest_gna.py"
+    ],
+    "not_fetched": [
+      "table5.csv and table6.csv -- named antibiotics with no numeric Accum. py/ingest_gna.py does not read them"
+    ]
+  }
 }

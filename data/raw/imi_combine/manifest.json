@@ -28,7 +28,10 @@
     "path": "data/processed/combined_bioassay_data.tsv",
     "rows": 74202,
     "columns": 15,
-    "verified_utc": "2026-10-07"
+    "verified_utc": "2026-10-07",
+    "sha256": "d0d36340b43fb3b1c0611d19f43f603dcb9dfc6e2b3f44821817923c8690e668",
+    "bytes": 13937955,
+    "checksum_added": "2026-10-16. This manifest pinned the commit and recorded no checksum, so a re-fetch could be verified only by trusting the ref. Measured against the local copy and the upstream file at 3c222f96: identical."
   },
   "verified_contents": {
     "compound_smiles": "74202 filled, all distinct",
@@ -78,13 +81,28 @@
   ],
   "attribution_required": "IMI-COMBINE broad_spectrum_prediction, MIT licence, JCIM 2025",
   "evidence": {
-  "in_inventory": true,
-  "artefacts": [
-    "data/work/imi_clean.parquet"
-  ],
-  "why": "the activity data the model is fitted on, and the only set here carrying organism-class labels. A question about a named target is actually resolved against this.",
-  "display": "IMI-COMBINE",
-  "measures": "activity",
-  "rows": 22052
-}
+    "in_inventory": true,
+    "artefacts": [
+      "data/work/imi_clean.parquet"
+    ],
+    "why": "the activity data the model is fitted on, and the only set here carrying organism-class labels. A question about a named target is actually resolved against this.",
+    "display": "IMI-COMBINE",
+    "measures": "activity",
+    "rows": 22052
+  },
+  "fetch": {
+    "ref": "3c222f96dfbab8172b4533d6f772f2de3b5350f6",
+    "where": "the clone is 137 MB and py/ingest_imi.py reads one 13.9 MB file, so the file is fetched rather than the repository.",
+    "files": [
+      {
+        "url": "https://raw.githubusercontent.com/IMI-COMBINE/broad_spectrum_prediction/3c222f96dfbab8172b4533d6f772f2de3b5350f6/data/processed/combined_bioassay_data.tsv",
+        "to": "data/raw/imi_combine/data/processed/combined_bioassay_data.tsv",
+        "sha256": "d0d36340b43fb3b1c0611d19f43f603dcb9dfc6e2b3f44821817923c8690e668",
+        "bytes": 13937955
+      }
+    ],
+    "then": [
+      "py/ingest_imi.py"
+    ]
+  }
 }

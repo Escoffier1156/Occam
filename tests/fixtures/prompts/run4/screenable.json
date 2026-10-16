@@ -91,7 +91,6 @@
           "training_set": "B3DB",
           "measures": "blood-brain barrier",
           "structures": 7805,
-          "caveat": "upstream version before v1.0.0: 7,807 rows against the 7,982 the repository holds today",
           "median_nearest": 0.215,
           "max_nearest": 0.629,
           "inside_threshold": 0.02

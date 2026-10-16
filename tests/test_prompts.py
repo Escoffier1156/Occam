@@ -391,61 +391,81 @@ class TheSixStillAnswerWhatTheyAnswered(unittest.TestCase):
     def test_the_run_that_stops_still_stops(self):
         self.assertIn("stopping", self.fresh["run2"]["stdout"])
 
-    def test_no_recorded_field_has_appeared_or_changed_type(self):
-        """The fixtures go stale silently, and that is how 108 survived.
+    def test_the_records_match_field_for_field(self):
+        """Every field of every record, except the one that moves.
 
-        Every other test here names the fields it compares -- rankability's
-        verdict, applicability's verdict, the exact counts. That is the right
-        choice for VALUES, because timings and version stamps move and a test
-        comparing whole transcripts fails on every commit and gets switched
-        off.
+        THE REACH OF THIS SUITE WAS TWO FIELDS
 
-        It is the wrong choice for SHAPE. The tie diagnosis was added to
+        The tests above name what they compare -- rankability's verdict,
+        applicability's verdict, the exact counts -- and that was the whole
+        comparison. The tie diagnosis was added to
         suggested_revisions.ranking.measured_alternatives as a dict where a
-        sentence had been, and 23 further fields appeared beside it. Nothing
-        compared that subtree, so the fixtures sat two commits behind the code
-        with every verdict still matching, and the one field whose TYPE had
-        changed was the one the renderer then formatted with an f-string.
+        sentence had been, 23 fields appeared beside it, and nothing looked:
+        the fixtures sat two commits behind the code with every verdict still
+        matching, and the one field whose TYPE had changed was the one the
+        renderer then formatted with an f-string (contraindication 108).
 
-        So: the shape is compared and the values are not. A field added or
-        retyped is then a deliberate re-recording with a sentence in the
-        commit, which is what RECORD.md already asks for and had no way to
-        enforce.
+        The reason given for naming fields was that timings and version
+        stamps move, and a test comparing whole transcripts fails on every
+        commit and gets switched off. So that was measured rather than
+        assumed: two independent recordings of all seven prompts differ in
+        exactly one field, `summary.seconds` in sweep.json. Nothing else in
+        any of the five records moves between runs -- not a count, not a
+        share, not an ordering, and no version stamp reaches these files.
+
+        So the comparison is everything, minus that one field. It caught the
+        false B3DB caveat on its first use: removing it from the manifest
+        changed five records, and a shape comparison could not see it because
+        CHAMP declares a caveat too, so the field never left the union.
         """
-        def shape(value, path=""):
+        # Measured, not assumed: the only field that differs between two
+        # recordings of the same prompt. A second entry here needs the two
+        # recordings that show it moving.
+        MOVES = {("sweep", "summary.seconds")}
+
+        def flatten(value, path=""):
             if isinstance(value, dict):
                 out = {}
                 for key, inner in value.items():
-                    out.update(shape(inner, f"{path}.{key}" if path else key))
+                    out.update(flatten(inner, f"{path}.{key}" if path else key))
                 return out
-            # A list's length is a measurement, not a shape: the frontier
-            # holds as many rows as it holds. Its elements' shape is not,
-            # so the first row stands for all of them.
             if isinstance(value, list):
-                return shape(value[0], f"{path}[]") if value else {path: "list"}
-            return {path: type(value).__name__}
+                out = {}
+                for index, item in enumerate(value):
+                    out.update(flatten(item, f"{path}[{index}]"))
+                return out or {path: "[]"}
+            return {path: value}
 
+        compared = 0
         for name in runs():
             for stem in ("request", "proposal", "screenable"):
                 was, now = load(name)[stem], self.fresh[name][stem]
                 if was is None or now is None:
                     self.assertEqual(was is None, now is None, f"{name}.{stem}")
                     continue
-                sw, sn = shape(was), shape(now)
-                self.assertEqual(
-                    sorted(set(sn) - set(sw)), [],
-                    f"{name}.{stem}: fields the code writes and the fixture "
-                    f"does not have. Re-record, and say in the commit what "
-                    f"they are")
-                self.assertEqual(
-                    sorted(set(sw) - set(sn)), [],
-                    f"{name}.{stem}: fields the fixture has and the code no "
-                    f"longer writes")
-                self.assertEqual(
-                    sorted(k for k in sw if sw[k] != sn[k]), [],
-                    f"{name}.{stem}: fields whose type changed. A field that "
-                    f"changes type changes how it must be printed -- that is "
-                    f"contraindication 108")
+                old_flat, new_flat = flatten(was), flatten(now)
+                for key in sorted(set(old_flat) | set(new_flat)):
+                    if (stem, key) in MOVES:
+                        continue
+                    compared += 1
+                    self.assertIn(key, new_flat,
+                                  f"{name}.{stem}: the fixture has {key} and "
+                                  f"the code no longer writes it. Re-record, "
+                                  f"and say in the commit what changed")
+                    self.assertIn(key, old_flat,
+                                  f"{name}.{stem}: the code writes {key} and "
+                                  f"the fixture does not have it. Re-record, "
+                                  f"and say in the commit what changed")
+                    self.assertEqual(
+                        new_flat[key], old_flat[key],
+                        f"{name}.{stem}.{key} moved. If that is intended, "
+                        f"re-record and say so in the commit; RECORD.md asks "
+                        f"for a sentence naming what moved")
+        # Two fields was the reach before this. Saying the number out loud is
+        # the point of the floor.
+        self.assertGreater(compared, 1000,
+                           f"only {compared} fields compared; the records are "
+                           f"not being read")
 
 
 @unittest.skipUnless(FIXTURES.is_dir(), f"no fixtures at {FIXTURES}")

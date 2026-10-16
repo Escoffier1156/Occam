@@ -967,13 +967,44 @@ class EvidenceIsDeclaredAndNotDiscovered(unittest.TestCase):
                              f"{word} resolved against this evidence")
 
     def test_a_declared_caveat_travels_with_the_evidence(self):
-        """B3DB here is the version before upstream v1.0.0, 7,807 rows
-        against the 7,982 the repository holds today. It was listed beside
-        the others in identical words."""
+        """A dataset listed beside the others in identical words hides what
+        it declares about itself.
+
+        THIS TEST USED TO ASSERT A FALSE CLAIM
+
+        It read `assertIn("v1.0.0", b3db[0]["caveat"])`, holding B3DB's
+        caveat that the local copy predated upstream v1.0.0 and that
+        re-fetching would move every number measured from it. Measured
+        2026-10-16: the file is byte-identical at every upstream ref that has
+        ever held it, the caveat was false, and it was reaching the reader's
+        screen. Contraindication 112.
+
+        A test that pins the TEXT of one caveat is a test that fails when the
+        caveat is corrected -- which is what happened, and is the only reason
+        this got looked at. So it holds the mechanism instead: whatever a
+        manifest declares about itself reaches the row, for every dataset
+        that declares anything.
+        """
         import inventory as inventory_mod
-        b3db = [d for d in inventory_mod.take() if d["dataset"] == "b3db"]
-        self.assertTrue(b3db, "B3DB is not in the evidence")
-        self.assertIn("v1.0.0", b3db[0].get("caveat", ""))
+        import json
+
+        rows = {d["dataset"]: d for d in inventory_mod.take()}
+        self.assertTrue(rows, "the evidence inventory is empty")
+        checked = 0
+        for path in sorted((ROOT / "data" / "raw").glob("*/manifest.json")):
+            evidence = json.loads(path.read_text()).get("evidence") or {}
+            declared = evidence.get("caveat")
+            if not declared or not evidence.get("in_inventory"):
+                continue
+            name = path.parent.name
+            self.assertIn(name, rows, f"{name} declares a caveat and is not "
+                                      f"in the inventory to carry it")
+            self.assertEqual(rows[name].get("caveat"), declared,
+                             f"{name}'s caveat does not reach its row")
+            checked += 1
+        self.assertGreater(checked, 0,
+                           "no declared caveat to carry, so this checked "
+                           "nothing. CHAMP's zero primary amines is one")
 
     def test_every_declaration_says_why(self):
         """In or out, the manifest states the reason. A dataset dropped

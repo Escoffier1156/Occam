@@ -14,7 +14,10 @@
   },
   "format": {
     "separator": "tab",
-    "columns": ["smiles", "zinc_id"],
+    "columns": [
+      "smiles",
+      "zinc_id"
+    ],
     "header": "none. The first line is already a molecule; a reader that skips it loses one",
     "charge_suffix": {
       "N": "predicted neutral at pH 7.4",
@@ -86,5 +89,42 @@
     "in_inventory": false,
     "artefacts": [],
     "why": "a library to screen, not evidence to answer from. ZINC22 is unmeasured: it carries no label, so a target question put to it could only ever return nothing. Listing it as evidence would say a question had been asked of it."
+  },
+  "fetch": {
+    "optional": true,
+    "why_optional": "ZINC22's terms permit screening and the sharing of screening results and require written permission to redistribute large portions. Nothing here redistributes it; this fetches it from the source, which is the reader's own download. It is opt-in because it is the only large one and because every request naming CHAMP, IMI, GramNegAccum or B3DB works without it.",
+    "no_checksum": "NO CHECKSUM IS RECORDED FOR ANY SLICE, so a fetch of these cannot be verified the way the other four are. What is checked instead is the row count after ingest, against rows_ingested below. That is weaker: it would not notice a slice whose contents changed without changing length. Said here rather than left to be assumed.",
+    "files": [
+      {
+        "slice": "N",
+        "url": "https://files.docking.org/zinc22/zinc-22x/H29/H29P240/H29P240-N.x.smi.gz",
+        "to": "data/raw/zinc22/H29P240-N.x.smi.gz",
+        "ingest_to": "data/work/zinc",
+        "rows_expected": 1000000,
+        "limit": 1000000
+      },
+      {
+        "slice": "O",
+        "url": "https://files.docking.org/zinc22/zinc-22x/H29/H29P240/H29P240-O.x.smi.gz",
+        "to": "data/raw/zinc22/H29P240-O.x.smi.gz",
+        "ingest_to": "data/work/zinc_O",
+        "rows_expected": 636669,
+        "limit": null
+      },
+      {
+        "slice": "P",
+        "url": "https://files.docking.org/zinc22/zinc-22x/H29/H29P240/H29P240-P.x.smi.gz",
+        "to": "data/raw/zinc22/H29P240-P.x.smi.gz",
+        "ingest_to": "data/work/zinc_P",
+        "rows_expected": 17775,
+        "limit": null
+      }
+    ],
+    "then": [
+      "py/ingest_zinc.py"
+    ],
+    "not_fetched": [
+      "the -M slice: never ingested, and no figure in this repository rests on more than a prefix of it"
+    ]
   }
 }

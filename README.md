@@ -204,21 +204,33 @@ holding the source, the licence, the checksums of the files and what was
 measured from them. That is deliberate: one source is CC BY-NC-ND, whose
 NoDerivatives clause reaches sharing parts of it. See [`NOTICE`](NOTICE).
 
-The four measured sets are each one download and one script:
+One command fetches what they declare and builds what the tool reads:
 
-| | source | ingest |
+```bash
+python3 py/fetch.py --dry-run    # what it would do, and nothing else
+python3 py/fetch.py              # the four measured sets, 18 MB
+python3 py/fetch.py --zinc       # and the ZINC22 slices, about 300 MB
+```
+
+| | pinned at | ingest |
 |---|---|---|
 | CHAMP | Zenodo 17434251 | `py/ingest_champ.py` |
-| GramNegAccum | Zenodo 19798859 | `py/ingest_gna.py` |
-| IMI-COMBINE | github.com/IMI-COMBINE/broad_spectrum_prediction | `py/ingest_imi.py` |
-| B3DB | github.com/theochem/B3DB | `py/ingest.py` |
+| GramNegAccum | `HergenrotherLab/GramNegAccum` v1.0 | `py/ingest_gna.py` |
+| IMI-COMBINE | `IMI-COMBINE/broad_spectrum_prediction` `3c222f96` | `py/ingest_imi.py` |
+| B3DB | `theochem/B3DB` v1.1.1 | `py/ingest.py` |
 
-**ZINC22** is separate. Its terms permit screening and the sharing of
-screening results, and require written permission to redistribute large
-portions, so the slices are fetched rather than shipped — by anyone who wants
-them, from the tranche named in
-[`data/raw/zinc22/manifest.json`](data/raw/zinc22/manifest.json).
-`py/ingest_zinc.py` turns a downloaded `.smi.gz` into what the tool reads.
+**The checksum is the guarantee, not the pin.** Every URL names a tag or a
+commit, and a tag can be moved, so the bytes are hashed against the manifest
+and a mismatch stops the run rather than ingesting it. Verified: the seven
+files fetched this way are byte-identical to the ones every figure in `docs/`
+was measured on, and the parquet rebuilt from them is byte-identical too —
+1,132 / 197 / 22,052 / 7,807 rows.
+
+**ZINC22** is opt-in and different. Its terms permit screening and the sharing
+of screening results and require written permission to redistribute large
+portions, so it is fetched from the source rather than shipped. No checksum
+was ever recorded for any slice, so what gets verified is the row count after
+ingest — weaker, and `--dry-run` says so rather than leaving it to be assumed.
 Mount the result into the container:
 
 ```bash
