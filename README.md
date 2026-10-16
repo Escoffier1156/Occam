@@ -181,10 +181,13 @@ podman build --build-arg OCCAM_VERSION="$(git describe --always --dirty --abbrev
 podman run --rm occam --help
 ```
 
-`docker` works the same. The build pulls the Rust toolchain and RDKit, and
-the image came out at about 560 MB. Pass `OCCAM_VERSION` or every run reports
-its version as `unknown`: an image carries no git history, and the line that
-stamps a result has nothing else to read.
+`docker` works the same. The build pulls the Rust toolchain and RDKit;
+the image measured **633 MB** on 2026-10-16. Both base images are pinned by
+digest, because they were not: two builds from the same Dockerfile on the same
+day came out at 557 MB and 633 MB, and "about 560 MB" sat on this page while
+the number was 633. Pass `OCCAM_VERSION` or every run reports its version as
+`unknown`: an image carries no git history, and the line that stamps a result
+has nothing else to read.
 
 **From a checkout**, with [Nix](https://nixos.org/download):
 
@@ -302,7 +305,8 @@ nix-shell --run 'cd engine && cargo test --release -- --test-threads=1'
 discover` once collected nothing here and exited 0, which reads as green.
 
 `OCCAM_PROMPTS=1` adds the slow layer — every recorded prompt run for real,
-its verdicts compared against `tests/fixtures/prompts/` — and needs the data.
+each record compared against `tests/fixtures/prompts/` field by field, 1,733
+of them — and needs the data. 27 minutes, measured.
 `--test-threads=1` is required, not tidiness: one Rust test deliberately holds
 a guard that another trips if they overlap.
 
