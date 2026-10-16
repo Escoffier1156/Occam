@@ -209,8 +209,11 @@ One command fetches what they declare and builds what the tool reads:
 ```bash
 python3 py/fetch.py --dry-run    # what it would do, and nothing else
 python3 py/fetch.py              # the four measured sets, 18 MB
-python3 py/fetch.py --zinc       # and the ZINC22 slices, about 300 MB
+python3 py/fetch.py --zinc       # and the ZINC22 slices, 73 MB gzipped
 ```
+
+`--zinc` was written as "about 300 MB" before it had been run. Measured: 73 MB
+gzipped over three slices, and the -N ingest is the slow part.
 
 | | pinned at | ingest |
 |---|---|---|
@@ -230,7 +233,9 @@ was measured on, and the parquet rebuilt from them is byte-identical too —
 of screening results and require written permission to redistribute large
 portions, so it is fetched from the source rather than shipped. No checksum
 was ever recorded for any slice, so what gets verified is the row count after
-ingest — weaker, and `--dry-run` says so rather than leaving it to be assumed.
+ingest, and the slice's own line count against what the manifest declares —
+weaker than a checksum, and `--dry-run` says so rather than leaving it to be
+assumed.
 Mount the result into the container:
 
 ```bash

@@ -69,6 +69,29 @@ ENTRY_ACCUMULATION_BY_CHARGE = {
 _SLICE = re.compile(r"-([NOMP])(?:\.[a-z])?\.smi\.gz$")
 
 
+def _declared_slice_rows(letter):
+    """The slice's measured size, from the manifest that declares it."""
+    path = (Path(__file__).resolve().parent.parent / "data" / "raw"
+            / "zinc22" / "manifest.json")
+    if not path.exists():
+        return None
+    try:
+        body = json.loads(path.read_text())
+    except (OSError, ValueError):
+        return None
+    for entry in body.get("slices_ingested", []):
+        if entry.get("slice") == letter:
+            return entry.get("slice_rows")
+    return None
+
+
+def _capped(record, letter):
+    """True when this disk holds less than the slice."""
+    written = record.get("rows_written")
+    total = record.get("slice_rows") or _declared_slice_rows(letter)
+    return total is not None and written is not None and written < total
+
+
 def identify(part_dir):
     """What this library is, from its own recorded provenance."""
     sidecar = Path(part_dir) / "parts.json"
@@ -100,14 +123,25 @@ def identify(part_dir):
             # screen stated a slice size wrong by 4.6x, and stated it in the
             # same words it used for the two complete slices.
             #
-            # `slice_rows` is absent from older sidecars, which is why it falls
-            # back rather than failing: a record written before this was
+            # `slice_rows` is absent from older sidecars, which is why it
+            # falls back rather than failing: a record written before this was
             # measured cannot be made to say what it does not know.
+            #
+            # IT IS NOW READ FROM THE DECLARATION FIRST
+            #
+            # It used to be read from the sidecar only, and the sidecar is
+            # GENERATED: py/ingest_zinc.py does not write this field, it was
+            # added by hand. So re-ingesting the slice destroyed it, and
+            # `python3 py/fetch.py --zinc` did exactly that -- after which the
+            # screen said "1,000,000 compounds" for a 4,572,322-row slice,
+            # the sentence contraindication 92 exists to prevent. The figure
+            # now lives in data/raw/zinc22/manifest.json, where a measurement
+            # belongs, and the sidecar is consulted second so that a library
+            # ingested from somewhere else still reports what it recorded.
             "rows": record.get("rows_written"),
-            "slice_rows": record.get("slice_rows"),
-            "capped": (record.get("slice_rows") is not None
-                       and record.get("rows_written") is not None
-                       and record["rows_written"] < record["slice_rows"]),
+            "slice_rows": (record.get("slice_rows")
+                           or _declared_slice_rows(letter)),
+            "capped": _capped(record, letter),
             # This used to end "the SMILES in every slice are written
             # neutral", which was too strong: three of the four slices sampled
             # hold molecules drawn with a formal charge. The measurement, with

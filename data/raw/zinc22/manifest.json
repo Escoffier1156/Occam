@@ -35,7 +35,10 @@
       "ingested_to": "data/work/zinc",
       "rows_ingested": 1000000,
       "is_the_whole_slice": false,
-      "note": "exactly 1,000,000 is a truncation, not the size of the slice. The slice is larger and was cut at a round number; nothing here records the full count, so do not read 1,000,000 as the slice size"
+      "note": "exactly 1,000,000 is a truncation, not the size of the slice. The slice is larger and was cut at a round number; nothing here records the full count, so do not read 1,000,000 as the slice size",
+      "slice_rows": 4572322,
+      "slice_rows_measured": "lines of the gzipped source. Measured 2026-10-13, and again 2026-10-16 from a fresh download by py/fetch.py: identical. rows_ingested is what this disk holds; slice_rows is how large the slice is, and for -N those differ by 4.6x.",
+      "why_declared_here": "it was recorded only in data/work/<slice>/parts.json, a generated file, and py/ingest_zinc.py does not write it -- it was added to the sidecar by hand. So `python3 py/fetch.py --zinc` destroyed the only machine-readable copy, and the screen went back to saying '1,000,000 compounds' for a 4,572,322-row slice, which is the exact sentence contraindication 92 was written to prevent. A measured figure does not live in a generated file."
     },
     {
       "slice": "O",
@@ -44,7 +47,10 @@
       "ingested_to": "data/work/zinc_O",
       "rows_ingested": 636669,
       "is_the_whole_slice": true,
-      "note": "the slice this project screens. Richter et al. 2017 associate a positive charge with accumulation, so this is the slice their data points at"
+      "note": "the slice this project screens. Richter et al. 2017 associate a positive charge with accumulation, so this is the slice their data points at",
+      "slice_rows": 636669,
+      "slice_rows_measured": "lines of the gzipped source. Measured 2026-10-13, and again 2026-10-16 from a fresh download by py/fetch.py: identical. rows_ingested is what this disk holds; slice_rows is how large the slice is, and for -N those differ by 4.6x.",
+      "why_declared_here": "it was recorded only in data/work/<slice>/parts.json, a generated file, and py/ingest_zinc.py does not write it -- it was added to the sidecar by hand. So `python3 py/fetch.py --zinc` destroyed the only machine-readable copy, and the screen went back to saying '1,000,000 compounds' for a 4,572,322-row slice, which is the exact sentence contraindication 92 was written to prevent. A measured figure does not live in a generated file."
     },
     {
       "slice": "P",
@@ -53,7 +59,10 @@
       "ingested_to": "data/work/zinc_P",
       "rows_ingested": 17775,
       "is_the_whole_slice": true,
-      "note": "small, and the richest in primary amines. Used for trial runs"
+      "note": "small, and the richest in primary amines. Used for trial runs",
+      "slice_rows": 17775,
+      "slice_rows_measured": "lines of the gzipped source. Measured 2026-10-13, and again 2026-10-16 from a fresh download by py/fetch.py: identical. rows_ingested is what this disk holds; slice_rows is how large the slice is, and for -N those differ by 4.6x.",
+      "why_declared_here": "it was recorded only in data/work/<slice>/parts.json, a generated file, and py/ingest_zinc.py does not write it -- it was added to the sidecar by hand. So `python3 py/fetch.py --zinc` destroyed the only machine-readable copy, and the screen went back to saying '1,000,000 compounds' for a 4,572,322-row slice, which is the exact sentence contraindication 92 was written to prevent. A measured figure does not live in a generated file."
     },
     {
       "slice": "M",
@@ -101,7 +110,8 @@
         "to": "data/raw/zinc22/H29P240-N.x.smi.gz",
         "ingest_to": "data/work/zinc",
         "rows_expected": 1000000,
-        "limit": 1000000
+        "limit": 1000000,
+        "slice_rows": 4572322
       },
       {
         "slice": "O",
@@ -109,7 +119,8 @@
         "to": "data/raw/zinc22/H29P240-O.x.smi.gz",
         "ingest_to": "data/work/zinc_O",
         "rows_expected": 636669,
-        "limit": null
+        "limit": null,
+        "slice_rows": 636669
       },
       {
         "slice": "P",
@@ -117,7 +128,8 @@
         "to": "data/raw/zinc22/H29P240-P.x.smi.gz",
         "ingest_to": "data/work/zinc_P",
         "rows_expected": 17775,
-        "limit": null
+        "limit": null,
+        "slice_rows": 17775
       }
     ],
     "then": [

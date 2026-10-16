@@ -48,6 +48,7 @@ length -- and the run says so rather than leaving it to be assumed.
 """
 
 import argparse
+import gzip
 import hashlib
 import json
 import subprocess
@@ -141,6 +142,80 @@ def download(entry, say):
     return None
 
 
+def count_rows(entry, say):
+    """What a slice with no checksum gets instead: its row count.
+
+    Weaker than a checksum and said to be weaker. It would not notice a slice
+    whose contents changed without changing length, and it is checked against
+    `rows_expected`, which is what this project measured -- for the -N slice
+    that is a truncation at 1,000,000, not the size of the slice.
+    """
+    expected = entry.get("rows_expected")
+    if expected is None:
+        say(f"      {entry['slice']}: no row count declared, nothing to check")
+        return None
+    try:
+        import pyarrow.parquet as pq
+    except ImportError:
+        return (f"cannot count rows in {entry['ingest_to']}: pyarrow is not "
+                f"importable, and the row count is the only check this slice "
+                f"gets")
+    out = ROOT / entry["ingest_to"]
+    parts = sorted(out.glob("part-*.parquet"))
+    if not parts:
+        return (f"{entry['ingest_to']} holds no part-*.parquet after ingest, "
+                f"so nothing was written where {expected:,} rows were "
+                f"expected")
+    rows = sum(pq.read_metadata(part).num_rows for part in parts)
+    if rows != expected:
+        return (f"{entry['ingest_to']} holds {rows:,} rows and the manifest "
+                f"declares {expected:,}.\n"
+                f"      The slice has moved, or the ingest has. No checksum "
+                f"exists for this data, so the row count is the whole check "
+                f"and it did not pass.")
+    say(f"      {entry['slice']}: {rows:,} rows, as declared "
+        f"({len(parts)} part{'s' if len(parts) != 1 else ''})")
+    return None
+
+
+def check_slice_size(entry, say):
+    """The slice's own size, counted from the bytes just downloaded.
+
+    Separate from count_rows(), which checks what landed on disk. This checks
+    how large the slice IS, which for -N is 4.6x what the ingest keeps, and
+    it is the figure the screen needs to say "1,000,000 of its 4,572,322
+    compounds read" rather than "1,000,000 compounds" -- contraindication 92.
+
+    Counted here rather than copied, by the same method as the original
+    measurement, so the declaration is verified by the fetch instead of being
+    trusted by it. Cheap: 66 MB gzipped for the largest slice.
+    """
+    declared = entry.get("slice_rows")
+    if declared is None:
+        return None
+    path = ROOT / entry["to"]
+    lines = 0
+    try:
+        with gzip.open(path, "rb") as handle:
+            for block in iter(lambda: handle.read(CHUNK), b""):
+                lines += block.count(b"\n")
+    except OSError as err:
+        return f"cannot count the lines of {entry['to']}: {err}"
+    if lines != declared:
+        return (f"{entry['to']} holds {lines:,} lines and the manifest "
+                f"declares a slice of {declared:,}.\n"
+                f"      The slice has grown or shrunk upstream. Every figure "
+                f"about this library's size, and the screen's own "
+                f"'N of its M compounds read', rests on that number.")
+    if lines != entry.get("rows_expected"):
+        say(f"      {entry['slice']}: slice is {lines:,} lines, as declared, "
+            f"so this disk holds {entry['rows_expected']:,} of it")
+    else:
+        say(f"      {entry['slice']}: slice is {lines:,} lines, as declared, "
+            f"and all of it was read")
+    return None
+
+
 def ingest(dataset, block, say):
     """Run what the manifest says turns the bytes into what the tool reads."""
     for script in block.get("then", []):
@@ -156,6 +231,23 @@ def ingest(dataset, block, say):
                 done = subprocess.run(per_slice, cwd=ROOT)
                 if done.returncode != 0:
                     return f"{script} failed on slice {entry['slice']}"
+                # THE ROW COUNT IS THE ONLY CHECK THESE SLICES GET
+                #
+                # No checksum was ever recorded for any ZINC slice, so the
+                # manifest says the row count after ingest is what gets
+                # verified, and --dry-run says it, and the docstring at the
+                # top of this file says it. For an hour it was said in three
+                # places and implemented in none: `rows_expected` appeared
+                # nowhere in this module. Contraindication 105's shape --
+                # `sample and say so instead`, with the saying so missing --
+                # found an hour after writing contraindication 111 about
+                # exactly this.
+                problem = count_rows(entry, say)
+                if problem:
+                    return problem
+                problem = check_slice_size(entry, say)
+                if problem:
+                    return problem
             continue
         say(f"    {script}")
         done = subprocess.run(command, cwd=ROOT)
