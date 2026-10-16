@@ -166,7 +166,7 @@ nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_i
     tests/test_descriptors.py tests/test_folds.py tests/test_smiles.py \
     tests/test_invariants_locked.py tests/test_render.py tests/test_request.py \
     tests/test_no_duplicated_counts.py tests/test_contraindications.py \
-    tests/test_prompts.py' 2>&1 | tee data/work/tests.log
+    tests/test_prompts.py tests/test_documented_procedures.py' 2>&1 | tee data/work/tests.log
 nix-shell --run 'cd engine && cargo test --release -- --test-threads=1'
 ```
 
@@ -881,6 +881,18 @@ assertion を書くこと。文章を書き直すことではない。
     **証明しようとして2件目の穴が出た。**108 を再現して境界が発火することを確かめようとしたら**発火しなかった。**固定具 run6 の `measured_alternatives` が**まだ文字列**だったから。固定具は 2026-10-14 の `500f4f0` のままで、**今のコードが書く24フィールドを持っていない**（`rankability.short_by`、`largest_tie.*`、同点診断の全部）。ライブ層が比べているのは `rankability.verdict` と `applicability.verdict` の**2つだけ**で、**不具合が住んでいた部分木は記録されていて一度も比較されていなかった。**つまり穴は「文字列を比べていない」より一段深く、**JSON の大半も比べていない。**値ではなく**形（キー集合と型）を比較する**テストを足した — 秒数や版数は動くので値は比べない。フィールドの追加や型の変更は、これで RECORD.md が求めていた「どの判定が動いたか commit に書く」の**強制になる。**
     **`[LOCK: pbt]` は使えない**（禁忌100 と同じ理由）。PBT エンジンは**引数1個の整数**を生成し、領域を**空の名前空間で exec** する。文字列1個を取るガード関数は10,000入力すべて `TypeError` で、`pbt_unverifiable` になる（偽の緑ではなくなったのは上流を直したから）が、**縛れはしない。**`[LOCK: ast]` で構造を凍結し、挙動は hypothesis の性質テストで縛る — **任意の dict / list が f-string に入れば止まる**という形で、見つかった辞書ではなく種類を縛る。
     **なお「未解決プレースホルダが残っていない」検査は E を捕まえない。**E はスロットが**埋まった**うえで文が壊れた形で、`{...}` は残っていない。そして製品コードに `str.format`・`%`-format・`string.Template` は**1つも無い**ので、今日のところ守る対象が無い。E を縛っているのは `barrier_sentence()` を呼ぶ挙動テスト3本（禁忌90 で文字列検索から書き換えたもの）。`%s` の形は境界に残したが、**これは将来 `%`-format が入ったときの保険で、いま何かを守っているとは書かない**
+111. 〔T〕 **「書いてあるが、一度も実行されていない」は、今日4回出た同じ欠陥** — 根は1つ：**書いた時点では正しくて、誰も通さないまま残る。**
+    | 書いてあったこと | 実際 |
+    | --- | --- |
+    | 代替案「frontier を32分で測れ」 | 効くか測っていなかった。測れない — 答えは既に分かっていた |
+    | 出典ラベル `measured`（`SKETCH_RELATIVE_ERROR`） | その測定は存在しなかった（禁忌102・103） |
+    | コメント `sample and say so instead` | 標本化は実装され、**say so が実装されていなかった**（禁忌105） |
+    | `RECORD.md` の再記録手順 | **存在しない `prompts.txt`** を読んでいた。書かれたとおり一度も実行されていない |
+    **文書はリポジトリの記述ではなく、リポジトリについての主張**で、**誰も実行しない主張はコードが動く速さで腐る。**
+    `docs/prompt_format.md` は前からこの形で守られている — 列挙された綴りは全部 `tests/test_request.py` がパーサに通すので、**動かない例は build の失敗になる。**それを他の文書に一般化したのが `tests/test_documented_procedures.py`（9本）：**rooted path は厳密に存在する / 裸のファイル名はリポジトリのどこかに解決する / フラグは argparse が受け付ける / cargo feature は Cargo.toml が宣言している / 文書のモジュール一覧は tests/ の全部で、3箇所が一致する / 文書が約束する入口は `--help` に答える。**
+    **意図的に実行しないもの**：コンテナのビルド、ZINC の取得、20分の再記録。**20分かかる検査は切られる検査**で、それはこのモジュールが防ごうとしている失敗が別の道から来た形。3つとも、安い部分（パス・フラグ・feature）で検証する。
+    **最初の実行で自分を捕まえた** — `test_documented_procedures.py` 自身が文書の一覧に無かったので落ちた。
+    **そして裸のファイル名の検査は、動機になった欠陥そのものを通した。**正規表現が両側に空白を要求していて、現物は `prompt=$(sed -n "${n}p" prompts.txt)` — **名前がカッコで終わる。****修理済みの `RECORD.md` に当てて「問題なし」を得て、効くと結論していた。**欠陥が既に取り除かれた文書で測っていたということ。境界をシェルの句読点に広げて直した。**見つけ方は、7つの欠陥を1つずつ仕込んで「担当の検査が落ちるか」を確かめること** — 1本が通した。禁忌100（検査できない対象に緑を返す）と禁忌102（0件実行の exit 0）と同じ系で、**今回は「検査を検査する」側で踏んだ。**新しい検査を入れるときは、**無改変で通ることではなく、仕込んだ欠陥で落ちることを先に見る**
 
 ### 変換の待ち行列（〔文〕50件のうち、assertion が書けるもの）
 
@@ -1102,7 +1114,7 @@ nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_i
     tests/test_descriptors.py tests/test_folds.py tests/test_smiles.py \
     tests/test_invariants_locked.py tests/test_render.py tests/test_request.py \
     tests/test_no_duplicated_counts.py tests/test_contraindications.py \
-    tests/test_prompts.py' 2>&1 | tee data/work/tests.log
+    tests/test_prompts.py tests/test_documented_procedures.py' 2>&1 | tee data/work/tests.log
 nix-shell --run 'cd engine && cargo test --release -- --test-threads=1'
 nix-shell --run 'OCCAM_FACTORS="1 10 100 1000" python3 -m unittest tests/test_memory_invariant.py'
 ```

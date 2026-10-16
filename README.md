@@ -277,11 +277,11 @@ nix-shell --run 'python3 -m unittest tests/test_memory_invariant.py tests/test_i
     tests/test_descriptors.py tests/test_folds.py tests/test_smiles.py \
     tests/test_invariants_locked.py tests/test_render.py tests/test_request.py \
     tests/test_no_duplicated_counts.py tests/test_contraindications.py \
-    tests/test_prompts.py'
+    tests/test_prompts.py tests/test_documented_procedures.py'
 nix-shell --run 'cd engine && cargo test --release -- --test-threads=1'
 ```
 
-228 Python and 11 Rust. The module list is explicit on purpose: `unittest
+237 Python and 11 Rust. The module list is explicit on purpose: `unittest
 discover` once collected nothing here and exited 0, which reads as green.
 
 `OCCAM_PROMPTS=1` adds the slow layer — every recorded prompt run for real,
