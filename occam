@@ -20,7 +20,10 @@ usage: occam                       type the request at the prompt
        occam "<request>"           or give it on the command line
        occam --spec request.json   the structured form; this is what a record keeps
 
-  --yes             do not ask before reading the library
+  --yes             do not ask before reading the library, and run anyway
+                    when the library measures a different barrier from the
+                    conditions, or contradicts the published rule the request
+                    is built on. The reasons are printed either way
   --dry-run         read the request and stop
   --limit N         stop after N molecules
   --no-exact        skip the exact recount of the frontier (faster, estimates)

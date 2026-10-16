@@ -678,7 +678,24 @@ def main():
     parser.add_argument("--spec", type=Path, default=None)
     parser.add_argument("--limit", type=int, default=0,
                         help="stop after this many molecules (0 = the whole library)")
-    parser.add_argument("--yes", action="store_true", help="do not ask before running")
+    # THIS FLAG DOES THREE THINGS AND WAS DOCUMENTED AS DOING ONE
+    #
+    # It skips the "run this? [y/N]" confirmation, which is what the help
+    # said. It also overrides the two refusals that are about whether the
+    # published rule applies at all: a library measuring a different barrier
+    # (line ~836) and a charge slice contradicting the rule the request is
+    # built on (line ~843). Those are not confirmations, they are findings.
+    #
+    # Every automated caller passes --yes -- tests/test_prompts.py, the
+    # re-recording procedure, the container examples -- so every scripted run
+    # had both findings disabled by a flag that said it only stopped the
+    # asking. Found by a request pointing the eNTRy conditions at B3DB.
+    parser.add_argument("--yes", action="store_true",
+                        help="do not ask before running, AND run anyway when "
+                             "the library measures a different barrier from "
+                             "the conditions, or contradicts the published "
+                             "rule the request is built on. The reasons are "
+                             "printed either way")
     parser.add_argument("--dry-run", action="store_true",
                         help="read the request and stop")
     parser.add_argument("--out-dir", type=Path, default=WORK)
@@ -1094,7 +1111,8 @@ def main():
                     f"on.", hanging=2):
                 print(line)
         else:
-            body = screenable_mod.report(survivors, full=args.full)
+            body = screenable_mod.report(survivors, full=args.full,
+                                         library=spec["library"])
             screen_body = body
 
             # Computed before the report is printed so that the count of what

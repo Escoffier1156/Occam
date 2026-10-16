@@ -663,7 +663,7 @@ def applicability(survivors, training_smiles, size=SAMPLE):
     }
 
 
-def nearest_training_set(survivors, candidates=None, size=300):
+def nearest_training_set(survivors, candidates=None, size=300, library=None):
     """Which of the available training sets is this set actually nearest to?
 
     The revision for an extrapolating verdict. Measured over every labelled
@@ -688,6 +688,27 @@ def nearest_training_set(survivors, candidates=None, size=300):
         "B3DB": ("blood-brain barrier",
                  WORK / "B3DB_classification.parquet"),
     }
+
+    # A SET COMPARED WITH ITSELF ANSWERS NOTHING
+    #
+    # These four are the measured sets on this disk, and any of them can also
+    # be the library a request names. When it is, every survivor has an
+    # identical structure in the comparison set: median nearest Tanimoto
+    # 1.000, 100% inside the threshold, and the tick that marks "the training
+    # sets this library is inside". It then sorts first, and the sentence
+    # under the block says the first row is the one the library is nearest to
+    # -- so the one reassuring row is the library matching itself.
+    #
+    # Measured: a request for 300 scaffolds from B3DB under the eNTRy
+    # conditions, 1,963 survivors, gave `B3DB ... median nearest 1.000,
+    # 100.0% at or above Tanimoto 0.4` above three real rows at 0.209, 0.163
+    # and 0.147. Nothing in the recorded prompt set reaches this: five screen
+    # a ZINC slice, which is not a candidate here, and the CHAMP run leaves no
+    # survivors so the block never runs. Contraindication 116.
+    if library is not None:
+        screened = Path(library).resolve()
+        candidates = {name: body for name, body in candidates.items()
+                      if Path(body[1]).resolve() != screened}
     import inventory as inventory_mod
 
     declarations = inventory_mod.declared()
@@ -831,7 +852,7 @@ def answerable_questions(words=None):
 
 def report(survivors, features=WORK / "imi_fp" / "features.parquet",
            training_library=WORK / "imi_clean.parquet", size=SAMPLE,
-           epochs=10, learning_rate=0.5, full=False):
+           epochs=10, learning_rate=0.5, full=False, library=None):
     """All three, for one survivor set. Molecules are never returned.
 
     `size` is the applicability sample, whose cost scales. The ranking count
@@ -851,12 +872,16 @@ def report(survivors, features=WORK / "imi_fp" / "features.parquet",
     if apply_["verdict"] == "answerable_but_extrapolating":
         revisions["activity prediction"] = {
             "problem": "the set sits outside the structures the model was fitted on",
-            "measured_alternatives": nearest_training_set(survivors),
+            "measured_alternatives": nearest_training_set(survivors,
+                                                          library=library),
             "what_this_means": "the training set listed first is the one this "
                                "library is actually nearest to. If none reaches "
                                "the threshold, no model fitted on what is here "
                                "can speak about this library, and the revision "
-                               "is data rather than a setting.",
+                               "is data rather than a setting. The library "
+                               "being screened is left out of this comparison "
+                               "when it is one of these sets: comparing it "
+                               "with itself returns 1.000 and says nothing.",
         }
     if rank["verdict"] == "not_answerable":
         # Only on a failed ordering, like eliminating_conditions() on a zero:

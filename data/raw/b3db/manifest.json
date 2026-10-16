@@ -1,6 +1,6 @@
 {
   "dataset": "B3DB: Blood-Brain Barrier Database",
-  "role": "a different barrier from the one this project's conditions are about. Used as a nearest-neighbour comparison set, so a library can be told whether it resembles brain-penetrant chemistry rather than what was asked for. Never used to screen with the eNTRy conditions: a request pointing those at this data stops.",
+  "role": "a different barrier from the one this project's conditions are about. Used as a nearest-neighbour comparison set, so a library can be told whether it resembles brain-penetrant chemistry rather than what was asked for. Never used to screen with the eNTRy conditions: a request pointing those at this data stops, and names the barrier on both sides before it does. With --yes it prints the same reasons and runs, which this sentence did not say until a request pointing the eNTRy conditions at this library was actually tried -- see contraindication 116.",
   "repository": {
     "url": "https://github.com/theochem/B3DB",
     "files_under": "B3DB/",
