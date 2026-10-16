@@ -31,3 +31,11 @@ __pycache__/
 # predictions of py/inclusion.py are the exception worth keeping: they are the
 # record that the rule was stated before the transfers were run, so a copy is
 # tracked as docs/inclusion_predictions.json.
+
+# Rendered documents. docs/pdf/build.py makes them from the markdown, which is
+# the only copy of the text; keeping the output beside the source is two
+# copies of a statement that drift. Removed once on 2026-10-14 for that
+# reason, and committed again two days later by a `git add -A` that did not
+# look -- hence this line rather than another round of deleting them.
+docs/pdf/*.html
+docs/pdf/*.pdf
