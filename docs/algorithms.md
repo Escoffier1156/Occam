@@ -233,6 +233,7 @@ usage: engine <descriptor-dir> [--stats stats.json] [--bulk-size N]
 `tests/test_memory_invariant.py` が解析する。
 
 **`ru_maxrss` は使えない**（禁忌2）。subprocess は vfork なので親のメモリを引き継ぐ。
+GNU time の `%M` も読んで**併記するが、判定は持たせない**（禁忌109）。`%M` はラッパー自身の footprint（`true` で 1,428〜1,540 KiB）を床に持ち、VmHWM の2倍ばらつく。**比率を見る検査で `max()` を取ると、分子と分母が独立に上へ偏る。**
 
 ---
 

@@ -6,10 +6,14 @@ input is in the pipeline's own format, so the numbers describe the engine as
 it actually runs rather than a format kept only for this test. Every scale must stay within +-10% of the
 1x peak RSS.
 
-Peak RSS is the larger of two kernel readings: VmHWM reported by the engine
-(engine/src/metrics.rs) and GNU time's %M. wait4(2) called from this process
-is not usable: subprocess spawns through vfork, so the child's high-water mark
-already includes this Python interpreter before exec.
+Peak RSS is VmHWM, read by the engine from /proc/self/status
+(engine/src/metrics.rs). GNU time's %M is read too and printed beside it, as a
+cross-check on that self-report, but it does not set the verdict. Which
+instrument decides is argued at the assignment in run_engine().
+
+wait4(2) called from this process is not usable at all: subprocess spawns
+through vfork, so the child's high-water mark already includes this Python
+interpreter before exec (contraindication 2).
 
     nix-shell --run 'python3 -m unittest -v tests/test_memory_invariant.py'
 
@@ -43,6 +47,13 @@ DESC_DIR = WORK_DIR / f"{SOURCE_STEM}_desc"
 STATS = DESC_DIR / "stats.json"
 TOLERANCE = 0.10
 BULK_SIZE = 1024
+# How far GNU time's %M may sit from the engine's own VmHWM before the
+# self-report is the suspect rather than the noise. /usr/bin/time -f %M on
+# `true` reports 1,428-1,540 KiB, which is the wrapper's own footprint and the
+# floor under every %M reading; 2 MiB covers it. The two readings were never
+# observed more than 180 KiB apart, so this fires on a self-report that is
+# wrong by a factor and not on measurement noise.
+CROSS_CHECK_SLACK_KB = 2048
 # The 100x input must dwarf the peak RSS, otherwise a flat RSS proves nothing.
 MIN_DATA_TO_RSS_RATIO = 10
 
@@ -82,7 +93,27 @@ def run_engine(path, bulk_size):
     report = dict(kv.split("=", 1) for kv in result.stderr.split() if "=" in kv)
     hwm_kb = int(report["peak_rss_kb"])
     report["time_kb"] = time_kb
-    report["maxrss_kb"] = max(hwm_kb, time_kb)
+    # ONE INSTRUMENT DECIDES, AND WHY IT IS THIS ONE
+    #
+    # This was max(hwm_kb, time_kb) -- "the larger of two kernel readings",
+    # stated in the module docstring. That was conservatism, not a fallback:
+    # VmHWM is already mandatory (int() on "unknown" would raise) and %M is
+    # already optional (0 without GNU time), so %M was never standing in for
+    # a missing VmHWM.
+    #
+    # Conservatism is right for an absolute bound -- how big did it get, at
+    # most. This test asserts a RATIO between two runs, and max() of two
+    # readings that straddle each other is biased upward independently in the
+    # numerator and the denominator, so the ratio carries both inflations.
+    #
+    # Measured, 10 runs at each scale: max() picked VmHWM 5 times and %M 5
+    # times at BOTH scales, and %M - VmHWM ran -180 to +136 KiB. VmHWM spread
+    # 140-200 KiB, %M spread 284-384 KiB. Worst ratio the instrument alone
+    # can produce: with max(), 4,332/3,956 = +9.5%, and +11.4% was observed
+    # against a 10% tolerance; with VmHWM alone, 4,208/3,964 = +6.2%.
+    #
+    # So the tolerance was never the thing to move. Contraindication 109.
+    report["maxrss_kb"] = hwm_kb
     return report
 
 
@@ -165,6 +196,18 @@ class MemoryInvariant(unittest.TestCase):
             MIN_DATA_TO_RSS_RATIO * largest["maxrss_kb"] * 1024,
             "100x input is too small to tell flat RSS from proportional RSS",
         )
+
+        # The engine's self-report is the instrument now, so something has to
+        # check the instrument. %M cannot set the verdict on a ratio, but a
+        # VmHWM that has drifted free of it is not noise.
+        if GNU_TIME:
+            for n, r in runs.items():
+                self.assertLessEqual(
+                    abs(r["time_kb"] - int(r["peak_rss_kb"])), CROSS_CHECK_SLACK_KB,
+                    f"x{n}: VmHWM {r['peak_rss_kb']} KiB and GNU time's %M "
+                    f"{r['time_kb']} KiB disagree by more than the wrapper's "
+                    f"own footprint -- the self-report is the suspect",
+                )
 
         for n in FACTORS[1:]:
             delta = (runs[n]["maxrss_kb"] - base) / base
