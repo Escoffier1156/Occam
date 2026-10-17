@@ -176,7 +176,7 @@ The reasoning is at the top of the [`Dockerfile`](Dockerfile).
 box:
 
 ```bash
-git clone https://github.com/Escoffier1156/occam && cd occam
+git clone https://github.com/Escoffier1156/Occam && cd Occam
 podman build --build-arg OCCAM_VERSION="$(git describe --always --dirty --abbrev=10)" -t occam .
 podman run --rm occam --help
 ```
