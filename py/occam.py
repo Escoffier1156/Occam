@@ -153,6 +153,13 @@ STRICT_MARKERS = [
 # not make the amine strict too.
 STRICT_WINDOW = 40
 
+# THE JAPANESE WORD HERE IS DELIBERATE, NOT A STRAY
+#
+# A request may name the deliverable in Japanese: 骨格 is the word for
+# scaffold, and "256 distinct 骨格" parses exactly like "256 distinct
+# scaffolds". This project is written in Japanese and read in English, and a
+# request arrives in whichever the person is thinking in. Deleting the
+# alternative to make the file uniformly ASCII removes a feature.
 DELIVERABLE = [
     r"(?:top\s+)?(\d[\d,]*)\s+(?:unique\s+|distinct\s+|different\s+)?"
     r"(?:scaffolds?|骨格)",
@@ -954,7 +961,10 @@ def main():
     if not args.yes:
         try:
             # NFKC before comparing: an IME leaves the full-width 'ｙ', which
-            # is not 'y', and the run stopped on a yes.
+            # is not 'y', and the run stopped on a yes. The Japanese word for
+            # yes is accepted for the same reason -- someone typing at this
+            # prompt is answering in whatever their keyboard is in. Not a
+            # stray; removing it makes the prompt refuse a correct answer.
             reply = unicodedata.normalize(
                 "NFKC", input("\nrun this? [y/N] ")).strip().lower()
             if reply not in ("y", "yes", "はい"):

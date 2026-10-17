@@ -136,8 +136,8 @@ class Item47NoSelfMatchingWaitLoop(unittest.TestCase):
 
 
 class Item59FactClaimsAreNeverTakenAsInput(unittest.TestCase):
-    """59: "1億件", "0.071", "7,394" were all wrong, and all of them were
-    claims about the data rather than requests of it."""
+    """59: "100 million rows", "0.071", "7,394" were all wrong, and all of
+    them were claims about the data rather than requests of it."""
 
     CLAIMS = [
         ("the 100-million-item cache", "a library size"),

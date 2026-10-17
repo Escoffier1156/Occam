@@ -18,6 +18,12 @@ import ingest  # noqa: E402
 
 HEADER = ["a", "b", "c"]
 # Delimiters, quotes and line breaks inside fields are the cases that matter.
+#
+# The two non-ASCII characters are deliberate. RFC 4180 is defined over bytes
+# and this parser reads UTF-8, so a field has to survive a two-byte character
+# (é) and a three-byte one (日) intact -- including when a quote or a line
+# break lands beside one. Dropping them to make the file ASCII would leave the
+# multi-byte path untested.
 FIELD = st.text(alphabet=list("xyz \t,\"\n\ré日"), max_size=12)
 
 

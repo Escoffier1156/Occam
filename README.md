@@ -251,66 +251,118 @@ in every slice is written neutral. Confusing the two selects against the
 published rule rather than for it, and it is why this tool has no charge knob;
 the manifest says so at length.
 
-## What you can ask for
+## Writing a request
 
-The prose is matched against a closed vocabulary. **Everything below is the
-contract**: `tests/test_request.py` puts each spelling through the parser and
-asserts it appears on this page, so an example here that does not work is a
-failing build.
+Write it the way you would describe the screen to a colleague. Four things
+have to be in it.
 
-A request needs four things.
+> **500 distinct scaffolds** from the **dicationic ZINC library**,
+> **primary amine strictly required**, **rotatable bonds at most 5**,
+> **molecular weight strictly under 450**
 
-**The library.** Name the charge slice; the suffix is the predicted
-protonation state at pH 7.4, not the formal charge as drawn.
-
-| write | reads as |
-|---|---|
-| `cationic ZINC`, `protonated ZINC`, `ZINC O slice`, `+1 ZINC` | ZINC22 −O, 636,669 — **the one the published rule points at** |
-| `dicationic ZINC`, `ZINC +2 slice`, `multiply charged ZINC`, `ZINC P slice` | ZINC22 −P, 17,775 — richest in primary amines, good for trial runs |
-| `neutral ZINC`, `ZINC N slice`, `ZINC` (the default) | ZINC22 −N, 1,000,000 of 4,572,322 — **stops: contradicts the published rule** |
-| `CHAMP` | accumulation in E. coli, 1,132 |
-| `IMI` | activity, 22,051 |
-| `GramNegAccum`, `GNA` | the eNTRy rules' own compounds, 197 |
-| `B3DB`, `blood-brain`, `BBB` | blood-brain barrier, 7,807 — **stops under the eNTRy conditions: wrong barrier** |
-
-**The deliverable.** `256 distinct scaffolds`. Without one:
-`stopping: no deliverable named`.
-
-**The conditions.** Three knobs, three settings each, and nothing else.
-
-| knob | write | registered |
+| | what it is | if you leave it out |
 |---|---|---|
-| ionisable nitrogen | `primary amine` / `primary or secondary amine` / `basic nitrogen` | Richter 2017's first eNTRy condition, from strictest reading to broadest |
-| flexibility | `rotatable bonds at most 5` / `rotatable <= 7` / `rotatable bonds ≤ 9` | **5, 7 or 9 only.** 5 is published; 7 and 9 move it with no chemical claim |
-| molecular weight | `molecular weight under 450` / `MW under 600` | **450 or 600 only.** 450 is this project's choice; 600 is O'Shea & Moser as quoted by Richter, a range statement rather than a recommended bound |
+| **how many of what** | `500 distinct scaffolds` | it stops and says so |
+| **which library** | `the dicationic ZINC library` | it stops and says so |
+| **the conditions** | the three below | it uses the strictest setting and tells you it did |
+| **which you will not trade** | the word `strictly` | **everything becomes negotiable — see below** |
 
-The second eNTRy condition, globularity at most 0.25, **is not evaluated** —
-it needs a 3D conformer and nothing here generates one. The run says so every
-time. There is no charge knob: it was retired on 2026-10-11 after the
-predicted protonation state and the formal charge as drawn were confused, and
-naming one stops the run.
+Anything it does not recognise, it stops on. It never rounds a number to the
+nearest one it knows, and it never quietly drops a phrase it could not read.
 
-**Which conditions are not negotiable.** Without a mark, every condition may
-be relaxed, and the proposal will trade away a published one to reach your
-number.
+The deliverable may be written in Japanese: `256 distinct 骨格` reads exactly
+as `256 distinct scaffolds`. The confirmation prompt takes `はい` as well as
+`y`. Everything else is English.
+
+### The one thing worth being careful about
+
+**Write `strictly` on the conditions you will not give up.** Without it, the
+tool assumes every condition is open to negotiation, and the alternative it
+proposes may give one away.
+
+This is not an error, so nothing stops you. It is a different, equally valid
+request — and it changes the answer completely. Measured this morning, the
+same library and the same three conditions:
 
 ```
-molecular weight strictly under 450    -> held as asked
-MW must be under 450                   -> held as asked
-rotatable bonds at most 5              -> may be relaxed
+without "strictly"
+  recommended: any nitrogen basic near pH 7.4; rotatable bonds at most 5;
+               under 450 Da  ->  565 scaffolds, feasible
+
+with "strictly"
+  not feasible at any registered setting
+    the most any of them reaches is about 72 distinct scaffolds against
+    300 required
 ```
 
-Recognised: `strictly` `must` `hard` `required` `no more than`
-`non-negotiable` `exactly` `fixed` `do not relax` `keep`. The mark applies to
-its own clause, not the whole sentence — `"MW strictly under 450, primary
-amine"` holds the weight and leaves the amine negotiable. A `must` at the
-front of the sentence holds **everything**, which means no alternative is
-proposed at all.
+The first answer quietly relaxed **the primary amine** — the first eNTRy
+condition, the one from Richter 2017 — to reach the number. It said so, in a
+line most readers skip.
 
-### What is not a requirement
+So read the echo at the top of every run. Each condition is marked:
 
-A ranking request — `Rank them and give me the top 50` — sets no knob, and
-the answer addresses it directly:
+```
+  ionisable nitrogen   an unhindered primary amine  (not negotiable)
+  flexibility          at most 5 rotatable bonds  (may be relaxed)
+  molecular weight     under 450 Da  (not negotiable)
+```
+
+`--dry-run` prints exactly that and stops, in under a second. On anything
+long, run it first.
+
+**One more:** a `must` at the start of the sentence binds *everything* —
+"The screening must satisfy the following: ..." makes every condition
+non-negotiable, so **no alternative is proposed at all** and the answer is
+yes or no. That is sometimes what you want. It is rarely what people expect.
+
+### Which library
+
+Say which charge state. The letter is **the form the molecule is predicted to
+take at pH 7.4**, not the charge drawn in the structure file — those are
+different things, and confusing them once cost this project a whole day's
+results.
+
+| write any of these | you get |
+|---|---|
+| `cationic ZINC` · `protonated ZINC` · `ZINC O slice` · `the +1 ZINC slice` | ZINC22, +1 at pH 7.4, 636,669 compounds. **The group the published rule is about** |
+| `dicationic ZINC` · `ZINC +2 slice` · `multiply charged ZINC` · `ZINC P slice` | ZINC22, +2 or more, 17,775. Richest in primary amines — good for a trial run |
+| `neutral ZINC` · `ZINC N slice` · `ZINC` | ZINC22, neutral, 1,000,000 of 4,572,322. **Stops**: Richter 2017 found 0 of 39 neutral compounds accumulating |
+| `CHAMP` | accumulation measured in *E. coli*, 1,132 compounds |
+| `GramNegAccum` · `GNA` | the eNTRy paper's own compounds, 197 |
+| `IMI` | antibacterial activity, 22,051 |
+| `B3DB` · `blood-brain` · `BBB` | blood-brain barrier, 7,807. **Stops** under the eNTRy conditions: wrong barrier |
+
+The two that stop will run with `--yes` if you have read why. The reason is
+printed either way.
+
+### The conditions
+
+Three, from Richter et al., *Nature* **545**:299 (2017) — the eNTRy rules.
+
+| | write | |
+|---|---|---|
+| **an ionisable nitrogen** | `primary amine` | strictest reading: an unhindered primary amine |
+| | `primary or secondary amine` | a secondary amine on carbon counts too |
+| | `basic nitrogen` | any nitrogen basic near pH 7.4 |
+| **flexibility** | `rotatable bonds at most 5` | the published limit |
+| | `rotatable <= 7` or `rotatable bonds ≤ 9` | the limit moved. **No chemical claim** — it is a relaxation and is labelled one |
+| **size** | `molecular weight under 450` | this project's choice. Not a permeability bound |
+| | `MW under 600` | O'Shea & Moser, quoted in Richter 2017 — a statement about what exists, not a recommended cut-off |
+
+Only **5, 7 or 9** and only **450 or 600**. Ask for 6, or for 500, and it
+stops and offers the registered ones rather than picking for you.
+
+**The second eNTRy condition is not evaluated.** Globularity at most 0.25
+needs a 3D conformer and nothing here generates one. Every run says so. Two of
+three conditions are applied, and the output never claims otherwise.
+
+**There is no charge condition.** It was removed on 2026-10-11 after the
+predicted protonation state and the drawn formal charge were confused with
+each other. Naming one stops the run.
+
+### Asking for a ranked list
+
+You can. The answer addresses it directly:
 
 ```
 you asked for the top 50. It cannot be drawn from this set: the scores are
@@ -318,47 +370,38 @@ you asked for the top 50. It cannot be drawn from this set: the scores are
   be choosing them.
 ```
 
-Claims about the data are discarded: `the 100-million-item cache`,
-`7,394 distinct diversity domains`, `verified`, `pre-packed`. Counts come from
-the measurement, not from the request.
+That is the usual answer on these libraries, and the run says exactly why,
+how far short it is, and what would change it.
 
-A target is matched against the evidence: `an inhibitor of transglycosylase`,
-`against transglycosylase`. A bare word is recorded as a candidate, promoted
-if a label in the evidence carries it, and reported and run past if not.
+### What it will not take from you
 
-### What it refuses
+Numbers *about* the data. `the 100-million-item library`,
+`7,394 distinct scaffolds`, `verified`, `pre-packed` — all discarded, with a
+line saying they were. Every count in the answer comes from the measurement,
+never from the request.
 
-Anything outside the vocabulary stops rather than being rounded:
+A target is matched against what has actually been measured here:
+`an inhibitor of transglycosylase`, `against transglycosylase`. A bare word is
+recorded, promoted if the evidence carries that label, and reported and run
+past if not.
 
-```
-refused rather than rounded:
-  "molecular weight under 500": 500 daltons is not a registered setting
-    registered: 450 or 600 daltons
-    ask for one of those instead. A new value is a change to the registry, and
-      has to arrive with the source that justifies it
-
-stopping: the request named something this cannot read as a requirement.
-  Nothing was rounded and nothing was redirected to a different field.
-```
-
-450 is not a floor it keeps, either — omit the bound and it says it supplied
-the strictest registered setting and that naming one replaces it. **Omitting
-a condition and misspelling one are different**: the first gets the strictest
-setting with a line saying so, the second stops.
-
-### A whole request
+### A whole request, end to end
 
 ```bash
-./occam "500 distinct scaffolds from the dicationic ZINC library,
-         primary amine strictly required,
-         rotatable bonds at most 5,
-         molecular weight strictly under 450"
+./occam --dry-run "500 distinct scaffolds from the cationic ZINC library,
+                   primary amine strictly required,
+                   rotatable bonds at most 5,
+                   molecular weight strictly under 450"
 ```
 
-Run `--dry-run` first on anything long. It reads the request and stops, which
-is the cheapest way to see what was understood and what was dropped. For
-anything that has to be kept as a record, `--spec request.json` takes the
-structured form instead of prose.
+Read the echo. If the conditions are marked the way you meant, drop
+`--dry-run` and run it. For a record you will keep or submit, `--spec
+request.json` takes the structured form instead of prose.
+
+**Everything spelled out on this page is tested.** `tests/test_request.py`
+puts each phrase through the reader and fails the build if it stops working,
+so an example here that does not work is a broken build, not a stale
+document.
 
 ## Before you use this
 
