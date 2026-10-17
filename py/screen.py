@@ -16,7 +16,7 @@ What this measures, and the honest form of the saving:
   engine. It does NOT cut total work, because deciding the rules costs one
   RDKit pass over every molecule in the library. Both costs are timed and
   reported separately, so "putting permeability first lowers the cost" can be
-  checked rather than asserted. docs/HANDOFF.md section 9 already records that
+  checked rather than asserted. HANDOFF.md section 9 already records that
   the claim is unverified; this is where the numbers come from.
 
 Counts are reported as lines read, molecules parsed and distinct InChIKey

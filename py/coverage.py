@@ -28,7 +28,7 @@ Standardisation uses the training set's mean and standard deviation only, as
 py/folds.py does: a library row must never influence the frame it is judged in.
 
 Per-descriptor exceedances are printed alongside, because a share on its own
-does not say what is out of range (see the taboo list in docs/HANDOFF.md).
+does not say what is out of range (see the taboo list in HANDOFF.md).
 """
 
 import argparse

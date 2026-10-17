@@ -1,7 +1,7 @@
 {
   "dataset": "ZINC22 tranche-level SMILES, zinc-22x H29P240",
   "role": "the unmeasured library a request is screened against. No labels: ZINC22 carries no measurements, so nothing here is fitted on it",
-  "why_this_manifest_exists": "the ingested parquet recorded its source as a path in a session temporary directory, which no longer exists. Every ZINC figure in docs/HANDOFF.md came from these slices, and until this file was written there was nothing that said which tranche they were. The identifier is the whole content: with it anyone can fetch the same bytes, and without it the measurements cannot be re-derived by anyone, including this project after a reboot",
+  "why_this_manifest_exists": "the ingested parquet recorded its source as a path in a session temporary directory, which no longer exists. Every ZINC figure in HANDOFF.md came from these slices, and until this file was written there was nothing that said which tranche they were. The identifier is the whole content: with it anyone can fetch the same bytes, and without it the measurements cannot be re-derived by anyone, including this project after a reboot",
   "source": {
     "site": "https://files.docking.org/zinc22/",
     "path_form": "zinc22/zinc-22<generation>/H<heavy>/H<heavy>P<logP>/H<heavy>P<logP>-<charge>.<generation>.smi.gz",

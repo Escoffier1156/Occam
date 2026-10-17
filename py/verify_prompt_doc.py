@@ -1,4 +1,4 @@
-# Every spelling docs/prompt_format.md names, put through the parser it
+# Every spelling README.md names, put through the parser it
 # documents. A document about how to write a prompt is wrong in the way that
 # matters if one of its rows does not parse.
 import sys

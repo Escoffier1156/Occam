@@ -182,7 +182,7 @@ DELIVERABLE = [
 #   neutral slice, which is the one the published rule says does not
 #   accumulate.
 #
-# tests/test_request.py checks every spelling docs/prompt_format.md names. An
+# tests/test_request.py checks every spelling README.md names. An
 # ordered first-wins matcher needs exhaustive cases, not examples.
 LIBRARIES = [
     (r"\bzinc\b[^.]{0,40}?(?:\+2|\bdication(?:ic)?\b|\bmultiply\s+charged\b"
@@ -492,7 +492,7 @@ def read_request():
     if not sys.stdin.isatty():
         return sys.stdin.read().strip()
     print("Request? Type it, then a blank line. Ctrl-C to abandon.")
-    print("What can be asked for: docs/prompt_format.md")
+    print("What can be asked for: README.md")
     lines = []
     try:
         while True:

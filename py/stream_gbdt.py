@@ -2,14 +2,16 @@
 
 Why this exists: Occam's 54-dimension linear model sits 0.0540 AUC below
 sklearn's HistGradientBoostingClassifier on CHAMP under matched folds. That
-gap has two possible causes and docs/HANDOFF.md has carried it as unresolved:
+gap has two possible causes and HANDOFF.md has carried it as unresolved:
 the linear model class, or the O(1) memory constraint itself. The baseline is
 already histogram-based, so binning is held constant and the question is sharp
 -- a histogram learner can in principle run in bounded memory, so if it does
 and still reaches the baseline, the memory constraint is not what costs the
 0.0540.
 
-The prediction was written to docs/residual_prediction.md before this ran.
+The prediction was written down before this ran; the file it was written
+to is gone, and HANDOFF.md section 11 records the timestamps (21:53 against
+a result at 22:03) that made it checkable.
 
 WHAT IS HELD, AND WHY IT IS FIXED LENGTH
 

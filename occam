@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# occam -- the entry point docs/prompt_format.md has always named.
+# occam -- the entry point the documentation has always named.
 #
 #     occam "256 distinct scaffolds from the cationic ZINC library,
 #            primary amine, rotatable bonds at most 5,
@@ -34,7 +34,7 @@ usage: occam                       type the request at the prompt
                     is reported as not settled, with what --full would cost
   --out-dir DIR     where request.json and the rest are written
 
-What can be asked for is in docs/prompt_format.md. The vocabulary is closed:
+What can be asked for is in README.md. The vocabulary is closed:
 anything outside it stops rather than being guessed at.
 USAGE
     exit 2

@@ -18,7 +18,7 @@ THE CHECKSUM IS THE GUARANTEE, NOT THE PIN
 Every url names a tag or a commit, which is what makes a fetch reproducible,
 and a tag can be moved. So the bytes are hashed and compared against the
 manifest, and a mismatch stops with what moved rather than ingesting it. The
-numbers in docs/ were measured on the bytes these checksums describe; data
+numbers in HANDOFF.md were measured on the bytes these checksums describe; data
 that hashes differently is a different set and the figures would silently
 become figures about it.
 
@@ -133,7 +133,7 @@ def download(entry, say):
                     f"      fetched  {found}\n"
                     f"      {got:,} bytes from {entry['url']}\n"
                     f"      The pin has moved, or the source has. Nothing was "
-                    f"ingested: every figure in docs/ was measured on the "
+                    f"ingested: every figure in HANDOFF.md was measured on the "
                     f"bytes that checksum describes, and data that hashes "
                     f"differently is a different set.")
     partial.replace(target)

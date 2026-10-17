@@ -16,7 +16,7 @@ Four contraindications, one root: correct when written, and never run by
 anyone. A document is not a description of the repository, it is a claim about
 it, and a claim nothing executes decays at the speed the code moves.
 
-docs/prompt_format.md has been held this way for some time -- every spelling
+The request vocabulary has been held this way for some time -- every spelling
 it lists is put through the parser by tests/test_request.py, so an example in
 it that does not work is a failing build. This module generalises that to the
 rest of what the documents assert, as far as it can be asserted cheaply:
@@ -47,8 +47,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 # Every document that tells a reader to do something.
-DOCS = ("README.md", "NOTICE", "docs/HANDOFF.md", "docs/prompt_format.md",
-        "docs/algorithms.md", "docs/provenance.md", "docs/final_report.md",
+# docs/ was made private on 2026-10-17. What a reader needs is in README.md
+# and HANDOFF.md, and both are checked here.
+DOCS = ("README.md", "HANDOFF.md", "NOTICE",
         "tests/fixtures/prompts/RECORD.md")
 
 RUNNABLE = re.compile(r"```bash\n(.*?)```", re.S)

@@ -32,7 +32,7 @@ CRITERIA, FIXED BEFORE THE RESULTS WERE SEEN
 
 The difference is bootstrapped directly, resampling the two sides
 independently, because they are disjoint. Comparing two separate intervals and
-calling an overlap "no difference" is the mistake taboo 44 in docs/HANDOFF.md
+calling an overlap "no difference" is the mistake taboo 44 in HANDOFF.md
 warns about, and the first version of this module made it.
 
 WHAT THIS CAN AND CANNOT ESTABLISH

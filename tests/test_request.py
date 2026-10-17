@@ -337,7 +337,7 @@ class EveryDocumentedLibraryPhraseSelectsTheRightSlice(unittest.TestCase):
     a different slice instead. Nothing failed; it just answered about the
     wrong library.
 
-    The phrases below are every one docs/prompt_format.md names. An ordered
+    The phrases below are every one README.md names. An ordered
     first-wins matcher needs exhaustive cases, not examples.
     """
 
@@ -401,7 +401,14 @@ class EveryDocumentedLibraryPhraseSelectsTheRightSlice(unittest.TestCase):
         "the +1 ZINC slice" passed on the strength of "the" appearing
         somewhere in a Japanese document -- a test that could not fail.
         """
-        doc = (ROOT / "docs" / "prompt_format.md").read_text().lower()
+        # README.md, not a separate format document.
+        #
+        # The vocabulary used to live in docs/prompt_format.md, which a reader
+        # had to go and find. Moving it to the page they already open makes
+        # this check stronger rather than weaker: the examples a reader sees
+        # are now the ones the parser is tested against, and there is no
+        # second copy to drift.
+        doc = (ROOT / "README.md").read_text().lower()
         for phrase, _ in self.CASES:
             # The documentation writes these as the request would, so compare
             # on the words that carry the meaning rather than on articles.
@@ -411,7 +418,7 @@ class EveryDocumentedLibraryPhraseSelectsTheRightSlice(unittest.TestCase):
             for word in words:
                 self.assertIn(word, doc,
                               f"{phrase!r} is tested but {word!r} is not in "
-                              f"docs/prompt_format.md")
+                              f"README.md")
 
     def test_which_pattern_matched_is_recorded(self):
         """First-wins ordering is invisible in the output, so the record has

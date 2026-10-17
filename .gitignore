@@ -27,16 +27,13 @@ engine/target*/
 __pycache__/
 *.pyc
 
-# Experiment outputs live under data/work/, which is already ignored. The
-# predictions of py/inclusion.py are the exception worth keeping: they are the
-# record that the rule was stated before the transfers were run, so a copy is
-# tracked as docs/inclusion_predictions.json.
+# Experiment outputs live under data/work/, which is already ignored.
 
-# Rendered documents. docs/pdf/build.py makes them from the markdown, which is
-# the only copy of the text; keeping the output beside the source is two
-# copies of a statement that drift. Removed once on 2026-10-14 for that
-# reason, and committed again two days later by a `git add -A` that did not
-# look -- hence this line rather than another round of deleting them.
-docs/pdf/*.html
-docs/pdf/*.pdf
+# docs/ was made private on 2026-10-17: the Japanese documents moved out of
+# the repository and HANDOFF.md was translated and moved to the root. What is
+# left on this disk under docs/ is the rendered PDF and HTML, which are
+# generated and were already ignored. The whole directory is ignored now so
+# that a `git add -A` cannot bring any of it back -- which is exactly how the
+# rendered documents returned two days after being deleted.
+docs/
 VERSION

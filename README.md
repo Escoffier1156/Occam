@@ -228,8 +228,8 @@ gzipped over three slices, and the -N ingest is the slow part.
 **The checksum is the guarantee, not the pin.** Every URL names a tag or a
 commit, and a tag can be moved, so the bytes are hashed against the manifest
 and a mismatch stops the run rather than ingesting it. Verified: the seven
-files fetched this way are byte-identical to the ones every figure in `docs/`
-was measured on, and the parquet rebuilt from them is byte-identical too —
+files fetched this way are byte-identical to the ones every figure in
+[`HANDOFF.md`](HANDOFF.md) was measured on, and the parquet rebuilt from them is byte-identical too —
 1,132 / 197 / 22,052 / 7,807 rows.
 
 **ZINC22** is opt-in and different. Its terms permit screening and the sharing
@@ -253,9 +253,82 @@ the manifest says so at length.
 
 ## What you can ask for
 
-The prose is matched against a closed vocabulary — three knobs, nine
-settings, a count, a library — and anything outside it stops rather than being
-guessed at:
+The prose is matched against a closed vocabulary. **Everything below is the
+contract**: `tests/test_request.py` puts each spelling through the parser and
+asserts it appears on this page, so an example here that does not work is a
+failing build.
+
+A request needs four things.
+
+**The library.** Name the charge slice; the suffix is the predicted
+protonation state at pH 7.4, not the formal charge as drawn.
+
+| write | reads as |
+|---|---|
+| `cationic ZINC`, `protonated ZINC`, `ZINC O slice`, `+1 ZINC` | ZINC22 −O, 636,669 — **the one the published rule points at** |
+| `dicationic ZINC`, `ZINC +2 slice`, `multiply charged ZINC`, `ZINC P slice` | ZINC22 −P, 17,775 — richest in primary amines, good for trial runs |
+| `neutral ZINC`, `ZINC N slice`, `ZINC` (the default) | ZINC22 −N, 1,000,000 of 4,572,322 — **stops: contradicts the published rule** |
+| `CHAMP` | accumulation in E. coli, 1,132 |
+| `IMI` | activity, 22,051 |
+| `GramNegAccum`, `GNA` | the eNTRy rules' own compounds, 197 |
+| `B3DB`, `blood-brain`, `BBB` | blood-brain barrier, 7,807 — **stops under the eNTRy conditions: wrong barrier** |
+
+**The deliverable.** `256 distinct scaffolds`. Without one:
+`stopping: no deliverable named`.
+
+**The conditions.** Three knobs, three settings each, and nothing else.
+
+| knob | write | registered |
+|---|---|---|
+| ionisable nitrogen | `primary amine` / `primary or secondary amine` / `basic nitrogen` | Richter 2017's first eNTRy condition, from strictest reading to broadest |
+| flexibility | `rotatable bonds at most 5` / `rotatable <= 7` / `rotatable bonds ≤ 9` | **5, 7 or 9 only.** 5 is published; 7 and 9 move it with no chemical claim |
+| molecular weight | `molecular weight under 450` / `MW under 600` | **450 or 600 only.** 450 is this project's choice; 600 is O'Shea & Moser as quoted by Richter, a range statement rather than a recommended bound |
+
+The second eNTRy condition, globularity at most 0.25, **is not evaluated** —
+it needs a 3D conformer and nothing here generates one. The run says so every
+time. There is no charge knob: it was retired on 2026-10-11 after the
+predicted protonation state and the formal charge as drawn were confused, and
+naming one stops the run.
+
+**Which conditions are not negotiable.** Without a mark, every condition may
+be relaxed, and the proposal will trade away a published one to reach your
+number.
+
+```
+molecular weight strictly under 450    -> held as asked
+MW must be under 450                   -> held as asked
+rotatable bonds at most 5              -> may be relaxed
+```
+
+Recognised: `strictly` `must` `hard` `required` `no more than`
+`non-negotiable` `exactly` `fixed` `do not relax` `keep`. The mark applies to
+its own clause, not the whole sentence — `"MW strictly under 450, primary
+amine"` holds the weight and leaves the amine negotiable. A `must` at the
+front of the sentence holds **everything**, which means no alternative is
+proposed at all.
+
+### What is not a requirement
+
+A ranking request — `Rank them and give me the top 50` — sets no knob, and
+the answer addresses it directly:
+
+```
+you asked for the top 50. It cannot be drawn from this set: the scores are
+  too tied for the order to be the model's, so whatever broke the tie would
+  be choosing them.
+```
+
+Claims about the data are discarded: `the 100-million-item cache`,
+`7,394 distinct diversity domains`, `verified`, `pre-packed`. Counts come from
+the measurement, not from the request.
+
+A target is matched against the evidence: `an inhibitor of transglycosylase`,
+`against transglycosylase`. A bare word is recorded as a candidate, promoted
+if a label in the evidence carries it, and reported and run past if not.
+
+### What it refuses
+
+Anything outside the vocabulary stops rather than being rounded:
 
 ```
 refused rather than rounded:
@@ -268,27 +341,51 @@ stopping: the request named something this cannot read as a requirement.
   Nothing was rounded and nothing was redirected to a different field.
 ```
 
-450 is not a floor it keeps, either — omit the bound and it says that it
-supplied the strictest registered setting and that naming one replaces it.
+450 is not a floor it keeps, either — omit the bound and it says it supplied
+the strictest registered setting and that naming one replaces it. **Omitting
+a condition and misspelling one are different**: the first gets the strictest
+setting with a line saying so, the second stops.
 
-[`docs/prompt_format.md`](docs/prompt_format.md) is the contract. Every
-spelling it lists is put through the parser by a test, so an example in it
-that does not work is a failing build.
+### A whole request
+
+```bash
+./occam "500 distinct scaffolds from the dicationic ZINC library,
+         primary amine strictly required,
+         rotatable bonds at most 5,
+         molecular weight strictly under 450"
+```
 
 Run `--dry-run` first on anything long. It reads the request and stops, which
-is the cheapest way to see what was understood and what was dropped.
+is the cheapest way to see what was understood and what was dropped. For
+anything that has to be kept as a record, `--spec request.json` takes the
+structured form instead of prose.
+
+## Before you use this
+
+Five things, none of which the output can tell you:
+
+1. **No experiment has been run.** Nothing here has touched a cell.
+2. **No one else has ever run it.** External validation is zero.
+3. **The eNTRy rules are Hergenrother lab's published work.** This applies
+   them; it does not compete with them.
+4. **Only ZINC22's open generations are used.** The site publishes credentials
+   for the protected ones as a riddle; they were not used, because compounds
+   drawn from them could affect the patentability of anything published from
+   them. `data/raw/zinc22/manifest.json` records that.
+5. **KeepOut is the same author and the same licence**, vendored under
+   `third_party/keepout/`.
 
 ## Reading further
 
-| | |
-|---|---|
-| [`docs/prompt_format.md`](docs/prompt_format.md) | what a request may say, and what each phrase selects |
-| [`docs/provenance.md`](docs/provenance.md) | which mechanism is whose published work, and §7 on what to know before using this |
-| [`docs/algorithms.md`](docs/algorithms.md) | every module, constant and guard, and why each is the value it is |
-| [`docs/final_report.md`](docs/final_report.md) | what is established, what was withdrawn, and where a guarantee broke |
-| [`docs/HANDOFF.md`](docs/HANDOFF.md) | the contraindications: every way this project has been wrong, and which of them a test now enforces |
+[`HANDOFF.md`](HANDOFF.md) is the whole record, in English. Sections 0 and 1
+give the shape, section 4 is every established figure with what was withdrawn
+beside it, and **section 7 is 117 contraindications** — every way this project
+has been wrong, each marked with whether a test now stops it coming back.
 
-Those documents are in Japanese; the tool's own output is in English.
+It is worth reading section 7 before using any number from here. The habit it
+records is the one the tool is built on: say what was measured, say what was
+only inferred, and withdraw the second when it turns out to disagree with the
+first.
 
 ## Tests
 

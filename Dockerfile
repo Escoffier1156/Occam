@@ -57,7 +57,7 @@ FROM docker.io/library/rust:1-slim@sha256:a1084bb57647249d08434a20058831537a49b7
 WORKDIR /build
 COPY engine/ engine/
 # Three builds: the product invokes target-fp, and the other two are what the
-# memory-invariant test measures. docs/HANDOFF.md has the table.
+# memory-invariant test measures. HANDOFF.md has the table.
 RUN cd engine \
  && cargo build --release --quiet \
  && cargo build --release --quiet --features linear --target-dir target-lin \
@@ -93,7 +93,7 @@ RUN printf '%s\n' "$OCCAM_VERSION" > /occam/VERSION
 
 COPY py/ py/
 COPY occam LICENSE NOTICE ./
-COPY docs/ docs/
+COPY HANDOFF.md ./
 COPY tests/ tests/
 COPY third_party/ third_party/
 COPY keepout.json ./

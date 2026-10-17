@@ -1,6 +1,6 @@
 """The contraindications that an assertion can be written for.
 
-docs/HANDOFF.md section 7 marks each of 83 items with whether a test enforces
+HANDOFF.md section 7 marks each of 83 items with whether a test enforces
 it. 50 were sentences only, and the list says plainly why that matters: what
 has actually held is the subset that became a test, and the rest has been
 stepped on again in a changed shape.

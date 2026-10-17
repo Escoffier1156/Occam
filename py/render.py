@@ -1010,7 +1010,7 @@ def cost_warning(rows, library_phrase_text=None):
     A request against the -O slice takes about forty minutes and the answer
     is often that the specification is feasible with room to spare -- which
     the -P slice, 36 times smaller, would have shown in a few minutes.
-    docs/prompt_format.md says to try the small slice first. The run says
+    README.md says to try the small slice first. The run says
     nothing, and a person at a prompt reads the run.
     """
     minutes = expected_minutes(rows)

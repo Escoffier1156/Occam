@@ -6,7 +6,7 @@ request and returns what a screen of it would and would not establish, and
 emits nothing. Choosing which molecules to make is the researcher's.
 
 It is kept, rather than deleted, because it produced the confirmed numbers in
-section 4 of docs/HANDOFF.md and because py/candidates.py carries a KeepOut
+section 4 of HANDOFF.md and because py/candidates.py carries a KeepOut
 lock. Deleting it would make those numbers unverifiable.
 
 It is guarded, rather than left alone, because on 2026-10-10 the assistant ran
