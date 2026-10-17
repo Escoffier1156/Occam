@@ -41,10 +41,12 @@ Three rules make it safe:
 import argparse
 import datetime
 import json
+import os
 import re
 import subprocess
 import sys
 import unicodedata
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -657,15 +659,15 @@ def check_targets(spec):
     return out
 
 
-def _survivor_smiles(library, choices, limit=None):
-    """SMILES of the molecules one specification keeps. Not returned to the
-    caller of this tool -- only counted and measured over."""
+def _survivors_in(args):
+    """One worker: the molecules these files keep, in file then row order."""
+    paths, choices, limit = args
     variant = sweep_mod.Variant(choices)
     nitrogen = {s["name"]: s for s in knobs_mod.settings_of("nitrogen")}
     from rdkit.Chem import Descriptors, rdMolDescriptors
 
     out = []
-    for text in sweep_mod.iter_library(library, limit):
+    for text in sweep_mod.iter_paths(paths, limit):
         mol = smiles_mod.parse(text)
         if mol is None:
             continue
@@ -676,6 +678,33 @@ def _survivor_smiles(library, choices, limit=None):
         if not nitrogen[choices["nitrogen"]]["test"](mol):
             continue
         out.append(text)
+    return out
+
+
+def _survivor_smiles(library, choices, limit=None, workers=None):
+    """SMILES of the molecules one specification keeps. Not returned to the
+    caller of this tool -- only counted and measured over.
+
+    THE ORDER OF THIS LIST IS LOAD-BEARING
+    --------------------------------------------------------------------
+    py/screenable.py samples it with a fixed seed, so a different order is a
+    different sample and a different verdict. The parts are split across
+    processes and the results concatenated IN PART ORDER, which makes this
+    list identical to the serial one rather than merely the same set.
+    """
+    paths = sweep_mod.library_parts(library)
+    if workers is None:
+        workers = int(os.environ.get("OCCAM_WORKERS", "0")) or (os.cpu_count() or 1)
+    if limit or workers <= 1 or len(paths) <= 1:
+        return _survivors_in((paths, choices, limit))
+
+    groups = sweep_mod._groups(paths, workers)
+    with ProcessPoolExecutor(max_workers=len(groups)) as pool:
+        chunks = list(pool.map(_survivors_in,
+                               [(g, choices, None) for g in groups]))
+    out = []
+    for chunk in chunks:          # map preserves the groups' order
+        out.extend(chunk)
     return out
 
 

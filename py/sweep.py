@@ -36,10 +36,12 @@ Neither depends on the number of molecules.
 
 import argparse
 import hashlib
+import os
 import itertools
 import json
 import sys
 import time
+from concurrent.futures import ProcessPoolExecutor
 from pathlib import Path
 
 import pyarrow.parquet as pq
@@ -223,6 +225,21 @@ def smiles_column(path):
         f"this cannot read is a library this cannot screen.")
 
 
+def iter_paths(paths, limit=None):
+    """The molecules in these parquet files, in file order then row order."""
+    seen = 0
+    for path in paths:
+        column = smiles_column(path)
+        table = pq.read_table(path, columns=[column])
+        values = table.column(0).to_pylist()
+        del table
+        for text in values:
+            yield text
+            seen += 1
+            if limit and seen >= limit:
+                return
+
+
 def iter_library(part_dir, limit=None):
     seen = 0
     for path in library_parts(part_dir):
@@ -237,14 +254,104 @@ def iter_library(part_dir, limit=None):
                 return
 
 
-def run(part_dir, variants, limit=None, exact_check=False):
-    """One pass. Every variant is tested against each molecule's properties."""
+# ---------------------------------------------------------------------------
+# RUNNING THE PASS ON MORE THAN ONE CORE
+#
+# The loop below is one molecule at a time and the molecules are independent,
+# so the only reason it ran on one core was that nobody had split it. Measured
+# 2026-10-17: 8 cores on this machine, 1 in use.
+#
+# WHAT MADE IT CHEAP
+#
+# The split already existed. A library is a directory of parquet parts, one
+# row group each, so a worker takes a contiguous run of parts and reads its
+# own files. Nothing crosses a process boundary on the way in, and what comes
+# back is a fixed-size summary per specification.
+#
+# WHAT HAD TO BE PROTECTED
+#
+# The records are byte-identical across runs and the slow layer compares 1,733
+# fields of them, so a parallel pass that answers differently -- or answers
+# the same but in a different order -- is not a speed-up, it is a second tool.
+#
+#   survivors, unreadable, evaluated   sums. Order-independent
+#   Sketch (HyperLogLog)               register-wise max. Order-independent,
+#                                      which is why the sketch was chosen
+#   exact scaffolds                    a set union. Order-independent
+#   Running (Welford mean and sd)      NOT order-independent in floating
+#                                      point. Merged strictly in part order,
+#                                      so two runs agree with each other even
+#                                      though the last bits differ from the
+#                                      serial accumulation. Those two figures
+#                                      reach sweep.json and nothing else
+#
+# A library held in one file, or a run with --limit, has nothing to split and
+# goes down the serial path unchanged.
+
+
+def _groups(parts, workers):
+    """`parts` in `workers` contiguous runs, in order, none empty."""
+    if workers <= 1 or len(parts) <= 1:
+        return [parts]
+    workers = min(workers, len(parts))
+    size, extra = divmod(len(parts), workers)
+    out, at = [], 0
+    for i in range(workers):
+        take = size + (1 if i < extra else 0)
+        out.append(parts[at:at + take])
+        at += take
+    return out
+
+
+def _merge_running(into, other):
+    """Welford's parallel combine. Called in part order, always."""
+    if other.n == 0:
+        return
+    if into.n == 0:
+        into.n, into.mean, into.m2 = other.n, other.mean, other.m2
+        return
+    total = into.n + other.n
+    delta = other.mean - into.mean
+    into.mean += delta * other.n / total
+    into.m2 += other.m2 + delta * delta * into.n * other.n / total
+    into.n = total
+
+
+def _as_running(triple):
+    """A Running rebuilt from what crossed the process boundary."""
+    out = Running()
+    out.n, out.mean, out.m2 = triple
+    return out
+
+
+def _merge_sketch(into, registers):
+    """Register-wise max. This is why a sketch and not a set."""
+    for i, value in enumerate(registers):
+        if value > into.registers[i]:
+            into.registers[i] = value
+
+
+def _run_group(args):
+    """One worker: the serial pass over a run of parts. Returns plain data."""
+    paths, choices_list, exact_check = args
+    variants = [Variant(c) for c in choices_list]
+    totals = _run_serial(paths, variants, None, exact_check)
+    return (
+        totals,
+        [(v.survivors, bytes(v.scaffolds.registers),
+          (v.weight.n, v.weight.mean, v.weight.m2),
+          (v.rotatable.n, v.rotatable.mean, v.rotatable.m2)) for v in variants],
+    )
+
+
+def _run_serial(paths, variants, limit=None, exact_check=False):
+    """One pass over these files. Returns the counters; the variants carry
+    their own accumulators, as they always did."""
     nitrogen_settings = {s["name"]: s for s in knobs_mod.settings_of("nitrogen")}
     evaluated = unreadable = 0
     exact = set() if exact_check else None
-    started = time.monotonic()
 
-    for text in iter_library(part_dir, limit):
+    for text in iter_paths(paths, limit):
         mol = smiles_mod.parse(text)
         if mol is None:
             unreadable += 1
@@ -289,6 +396,45 @@ def run(part_dir, variants, limit=None, exact_check=False):
         if exact is not None and holder:
             exact.add(holder[0])
 
+    return evaluated, unreadable, exact
+
+
+def run(part_dir, variants, limit=None, exact_check=False, workers=None):
+    """One pass. Every variant is tested against each molecule's properties.
+
+    Split across processes when there is more than one part to split and no
+    --limit to honour; see the note above _groups() for what had to stay
+    order-independent for that to be the same answer.
+    """
+    started = time.monotonic()
+    paths = library_parts(part_dir)
+    if workers is None:
+        workers = int(os.environ.get("OCCAM_WORKERS", "0")) or (os.cpu_count() or 1)
+
+    if limit or workers <= 1 or len(paths) <= 1 or not variants:
+        evaluated, unreadable, exact = _run_serial(paths, variants, limit, exact_check)
+    else:
+        groups = _groups(paths, workers)
+        choices_list = [v.choices for v in variants]
+        evaluated = unreadable = 0
+        exact = set() if exact_check else None
+        with ProcessPoolExecutor(max_workers=len(groups)) as pool:
+            # map keeps the groups' order, which is what makes the merge
+            # deterministic rather than merely correct.
+            results = list(pool.map(
+                _run_group,
+                [(g, choices_list, exact_check) for g in groups]))
+        for (ev, un, ex), per_variant in results:
+            evaluated += ev
+            unreadable += un
+            if exact is not None and ex:
+                exact |= ex
+            for variant, (sur, registers, weight, rotatable) in zip(variants, per_variant):
+                variant.survivors += sur
+                _merge_sketch(variant.scaffolds, registers)
+                _merge_running(variant.weight, _as_running(weight))
+                _merge_running(variant.rotatable, _as_running(rotatable))
+
     # A SWEEP THAT READ NOTHING HAS NOT MEASURED ANYTHING
     #
     # Zero molecules produced a full set of verdicts: "no setting of these
@@ -304,12 +450,11 @@ def run(part_dir, variants, limit=None, exact_check=False):
     # here, where the population is known, rather than at any of the places
     # downstream that would each have to remember to ask.
     if evaluated == 0:
-        parts = library_parts(part_dir)
         raise ValueError(
             f"read 0 molecules from {part_dir}: "
             + (f"no parquet file was found there"
-               if not parts else
-               f"{len(parts)} file(s) were read and held no rows")
+               if not paths else
+               f"{len(paths)} file(s) were read and held no rows")
             + ". A verdict needs a population to be about; this one would be "
               "about nothing, and would say so in the same words it uses for "
               "a library that was read and did not reach.")
