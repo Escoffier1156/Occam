@@ -1,8 +1,14 @@
 # Occam
 
-A feasibility checkpoint for Gram-negative antibiotic screening. You state the
-screen you are planning; it answers which parts of it hold, which do not, and
-what to do about the parts that do not.
+A feasibility checkpoint for screens of accumulation in Gram-negative
+bacteria. You state the screen you are planning; it answers which parts of it
+hold, which do not, and what to do about the parts that do not.
+
+The conditions it knows are the eNTRy rules, which are about **entry across
+the Gram-negative outer membrane** — whether a compound gets in, not whether
+it works once it is there. Activity is a separate axis here, and a weaker one:
+the model is fitted on a Gram-positive label standing in for target binding
+without the permeability barrier, and every run says so.
 
 **It emits no molecules.** What to make is the chemist's call. This answers
 whether the screen around that call can establish what it is meant to.
